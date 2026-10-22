@@ -6,8 +6,7 @@ Security fixes are applied to the latest release on the default branch.
 
 ## Reporting a Vulnerability
 
-Please report vulnerabilities through this repository's GitHub Security
-Advisories. Do not open a public issue for an undisclosed vulnerability.
+Please report vulnerabilities through this repository's GitHub Security Advisories. Do not open a public issue for an undisclosed vulnerability.
 
 Include the affected version, reproduction steps, impact, and any suggested
 mitigation. Remove credentials, personal data, recordings, and local absolute

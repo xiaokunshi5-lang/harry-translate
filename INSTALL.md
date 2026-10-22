@@ -69,10 +69,13 @@ pip install -r requirements.txt
    cp .env.example .env
    open -e .env
    ```
-3. 在访达中双击运行脚本：
-   - **`启动悬浮同传.command`**：直接唤起极简单态悬浮同传提词窗口（自带防多开守卫）；
+3. 在访达中双击运行脚本（或在终端运行）：
+   - **`启动悬浮同传.command`**：直接唤起极简单态悬浮同传提词窗口（推荐通用，自带防多开守卫）；
+   - **`启动悬浮同传_中译英.command`**：涉外演讲与对外宣讲专用（上英下中，自动挂起英译中，**立省 50% Token**）；
+   - **`启动悬浮同传_英译中.command`**：外教课与国际会议听讲专用（上中下英，自动挂起中译英，**立省 50% Token**）；
+   - **`启动双悬浮同传.command`**：国际商务与圆桌会谈专用（拉起上下错落双悬浮窗口，垂直间隔 30px，零重叠）；
    - **`启动同传系统.command`**：启动服务并在浏览器中打开双大屏监看控台（`http://localhost:8000/split`）；
-   - **`启动双悬浮同传.command`**：拉起上下错落双悬浮窗口。
+   - **`切换API_Key.command`**：终端交互式菜单更换与校验 DashScope API 密钥。
 
 ---
 
@@ -126,9 +129,12 @@ notepad .env
 
 双击运行以下脚本：
 
-- **`启动悬浮同传.bat`**：启动桌面悬浮提词 HUD 窗口；
-- **`启动同传系统.bat`**：启动同传服务并在浏览器中打开大屏监看控台；
-- **`启动双悬浮同传.bat`**：启动上下错落双悬浮窗口。
+- **`启动悬浮同传.bat`**：直接唤起极简单态悬浮同传提词窗口（推荐通用，自带防多开守卫）；
+- **`启动悬浮同传_中译英.bat`**：涉外演讲与对外宣讲专用（上英下中，自动挂起英译中，**立省 50% Token**）；
+- **`启动悬浮同传_英译中.bat`**：外教课与国际会议听讲专用（上中下英，自动挂起中译英，**立省 50% Token**）；
+- **`启动双悬浮同传.bat`**：国际商务与圆桌会谈专用（拉起上下错落双悬浮窗口，垂直间隔 30px，零重叠）；
+- **`启动同传系统.bat`**：启动同传服务并在浏览器中打开双大屏监看控台（`http://localhost:8000/split`）；
+- **`切换API_Key.bat`**：控制台交互式菜单更换与校验 DashScope API 密钥。
 
 ---
 
@@ -241,6 +247,21 @@ notepad .env
 
 ---
 
+### 5. 全局生产力快捷键速查表 (Cheat Sheet)
+
+在悬浮窗处于激活状态或桌面交互时，可直接使用以下生产力快捷键：
+
+| 快捷键 (macOS / Windows) | 动作名称 | 响应行为与技术特性 |
+| :--- | :--- | :--- |
+| **`Cmd + Shift + L`**<br>`Ctrl + Shift + L` | **鼠标穿透锁定/解锁** | 开启后浮窗完全不响应鼠标（可穿透点击下方 Word/PPT），再次按下解除穿透 |
+| **`Cmd + Shift + T`**<br>`Ctrl + Shift + T` | **双语通道快速互切** | 在 `中 ➔ EN`（中译英）与 `EN ➔ 中`（英译中）之间瞬时平滑翻转 |
+| **`Cmd + Shift + R`**<br>`Ctrl + Shift + R` | **双语视口比例快速切换** | 在 **`68:32`**（经典出厂比例）与 **`65:35`**（扩展原文比例）之间无缝瞬时切换，自动本地持久化记忆 |
+| **`Cmd + Shift + C`**<br>`Ctrl + Shift + C` | **字体调色方案轮换** | 循环切换 5 套高对比配色（暖金 ➔ 腾讯白 ➔ 冰川青 ➔ 黑曜石 ➔ 薄荷绿） |
+| **鼠标悬停顶部 24px 传感器** | **唤出控制胶囊** | 平时 100% 隐藏，鼠标移至顶端自动浮现通道药丸、配色药丸、穿透锁、透明度与设置键 |
+| **按住左上角把手 (`⠿`) 拖拽** | **120 FPS 窗口移动** | 硬件级无延迟拖拽窗口跨屏漫游 |
+
+---
+
 ## 六、全平台常见避坑 FAQ 与排障速查
 
 ### Q1: Mac 双击 `.command` 脚本闪退，提示“权限被拒绝”？
@@ -345,28 +366,31 @@ notepad .env
 # 激活项目专属虚拟环境 (Windows 使用 call .venv\Scripts\activate.bat)
 source .venv/bin/activate
 
-# 1. 验证 238 项全量 E2E 自动化测试 (基线功能全量回归)
+# 1. 验证 277 项全量自动化测试套件 (包含 238 项 E2E 阶梯测试 + 39 项开源版单元与适配测试)
+python -m unittest discover -s tests -p 'test_*.py'
+
+# 2. 验证 238 项核心 E2E 阶梯自动化测试 (基线功能全量回归)
 python tests/run_e2e_tests.py
 
-# 2. 验证 16 维工厂级终审审计门禁 (验证声卡 50ms 切片、425ms 延迟等核心性能)
+# 3. 验证 16 维工厂级终审审计门禁 (验证声卡 50ms 切片、425ms 延迟等核心性能)
 python tests/audit_gate.py
 
-# 3. 验证腾讯会议绝对稳态悬浮与 5 套字体配色方案 (AC-V1 ~ AC-V5)
+# 4. 验证腾讯会议绝对稳态悬浮与 5 套字体配色方案 (AC-V1 ~ AC-V5)
 python -m unittest tests/test_tencent_steady_hud_and_themes.py
 
-# 4. 验证单态对抗极限压测 (连续 10s 静默与流式吐字，断言 delta opacity == 0.0)
+# 5. 验证单态对抗极限压测 (连续 10s 静默与流式吐字，断言 delta opacity == 0.0)
 python -m unittest tests/challenger_steady_hud_adversarial.py
 
-# 5. 验证专精术语语料库与黄金比例 68%/32% 双视口防挤压布局
+# 6. 验证专精术语语料库与黄金比例 68%/32% 双视口防挤压布局
 python -m unittest tests/test_glossary_and_golden_ratio_layout.py
 
-# 6. 验证小窗口两行主译文零裁切物理包络专项测试
+# 7. 验证小窗口两行主译文零裁切物理包络专项测试
 python -m unittest tests/repro_issue_twoline_output_clip.py
 
-# 7. 验证中文原文辅助区 31px 安全包络防削顶专项测试
+# 8. 验证中文原文辅助区 31px 安全包络防削顶专项测试
 python -m unittest tests/repro_issue_chinese_input_clip.py
 
-# 8. 验证 68:32 ⇄ 65:35 双模舞台比例自适应与快捷键专项测试
+# 9. 验证 68:32 ⇄ 65:35 双模舞台比例自适应与快捷键专项测试
 python -m unittest tests/test_hud_dual_ratio_mode.py
 ```
 

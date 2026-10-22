@@ -13,8 +13,12 @@ echo "=========================================================="
 PYTHON=""
 if [ -f ".venv/bin/python" ]; then
     PYTHON=".venv/bin/python"
+    if ! $PYTHON -c "import fastapi, uvicorn, webview, pyaudio" >/dev/null 2>&1; then
+        echo ">> [检测] 虚拟环境缺少必要依赖，正在自动为您安装..."
+        $PYTHON -m pip install -r requirements.txt
+    fi
 elif command -v python3 >/dev/null 2>&1; then
-    if python3 -c "import fastapi, uvicorn, pywebview, pyaudio" >/dev/null 2>&1; then
+    if python3 -c "import fastapi, uvicorn, webview, pyaudio" >/dev/null 2>&1; then
         echo ">> [提示] 未发现 .venv，但系统 Python3 依赖完备，使用系统 Python3..."
         PYTHON="python3"
     else

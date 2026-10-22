@@ -21,7 +21,12 @@
 | **11** | **字幕出现明显滞后延时**<br>说话结束 2~3 秒才出字 | 1. 路由器 Wi-Fi 抖动严重；<br>2. 电脑开启了系统级低电量省电模式导致后台线程降频 | **通用** | 1. 会务现场建议插网线（Ethernet）；<br>2. 接入电源适配器，在主控大屏检查端到端延迟指示器（正常 $\le 450\text{ms}$） |
 | **12** | **全屏演讲时浮窗消失**<br>被 PPT / Keynote 遮挡 | 使用了第三方浏览器网页全屏，而非原生 App 窗口 | **Mac** | 使用原生悬浮窗（`float_app.py` 具备 337 / FullScreenAuxiliary 顶层常驻能力），勿使用普通浏览器小窗全屏 |
 | **13** | **未知代码变动或环境损坏**<br>系统无法正常拉起 | 误删或误改了核心文件 | **通用** | 先执行 `git status` 保存本地修改，再切换到 `v3.6.0` 基线；不要删除 `.env` 与 `.venv` |
-| **14** | **悬浮窗缩放或长句被截断**<br>担心文字被窗口下沿切半 | 传统固定行高视口缺少动态滚动，或窗口拉伸未自适应 | **通用** | 系统已内置 GPU 加速平滑跟随与 ResizeObserver，超长自动向上滚动并保留底部 $\ge 8\text{px}$ 呼吸区；测试命令：<br>`.venv/bin/python3 -m unittest tests/test_viewport_scroll_and_bilingual_stack.py` |
+| **14** | **悬浮窗缩放或长句被截断**<br>担心文字被窗口下沿切半 | 传统固定行高视口缺少动态滚动，或窗口拉伸未自适应 | **通用** | 系统已内置 GPU 加速平滑跟随与 ResizeObserver，超长自动向上滚动并保留底部 $\ge 8\text{px}$ 呼吸区；测试命令：<br>`python -m unittest tests/test_viewport_scroll_and_bilingual_stack.py` |
+| **15** | **小窗口输出两行时首行发虚遮挡**<br>像被毛玻璃遮住一半 | 旧版固定 28px 渐变羽化遮罩过大，且小窗口缺少两行包络保护 | **通用** | `v3.6` 引入 `twoLinesEnvelope` 两行物理包络与动态解耦遮罩，内容两行内遮罩尺寸动态归零，字字清晰零发虚；测试命令：<br>`python -m unittest tests/repro_issue_twoline_output_clip.py` |
+| **16** | **中文输入原文辅助区被分割线削顶**<br>汉字上半部分被裁切 | 辅助区旧版存在内边距与行高偏大，产生负向溢出 | **通用** | `v3.6` 移除 `padding-top` 并引入 12px/1.2 紧凑字号与 31px 安全包络，汉字稳落安全区零削顶；测试命令：<br>`python -m unittest tests/repro_issue_chinese_input_clip.py` |
+| **17** | **快速发言时上一句译文先蹦出来**<br>新句开头突兀复读闪现 | 跨句未做原子隔离，纯 ASR 转写阶段复用了旧句历史译文 | **通用** | `v3.6` 服务端接收新 `sentence_id` 时原子清空缓存，前端建立 `sentenceHasTranslation` 状态锁屏障，彻底根除跨句复读闪现；测试命令：<br>`python -m unittest tests/repro_issue_stale_sentence_leak.py` |
+| **18** | **希望中文原文有更大展示空间**<br>在小窗口看中文原文字号偏小 | 默认 68:32 比例优先倾向主译文，辅助区垂直净空有限 | **通用** | 按下 **`Cmd + Shift + R`**（Windows 按 **`Ctrl + Shift + R`**）秒级无缝切换为 **`65:35`** 模式，辅助区扩展至 35%，自动持久化记忆；测试命令：<br>`python -m unittest tests/test_hud_dual_ratio_mode.py` |
+| **19** | **浅色或白底 PPT 下字体看不清**<br>黄色字体在白底下对比度弱 | 会议胶片为浅色或高亮背景 | **通用** | 按下 **`Cmd + Shift + C`**（Windows 按 **`Ctrl + Shift + C`**）切换为 **`🎨 黑曜石`** 配色方案（深黑粗体加纯白发光轮廓），专为纯白 PPT 打造；测试命令：<br>`python -m unittest tests/test_tencent_steady_hud_and_themes.py` |
 
 ---
 
@@ -88,5 +93,5 @@ git switch --detach v3.6.0
    ```bash
    .venv/bin/python3 -m unittest tests/test_viewport_scroll_and_bilingual_stack.py
    ```
-2. **多行生成防截断验证**：系统预留底部 $\ge 8\text{px}$ 呼吸区，随着发言持续吐字，轨道容器自动执行 `transform: translateY` 向上平滑滚动，旧句升入顶部 28px 渐变遮罩自然淡出，无需任何手动滚动操作；
+2. **多行生成防截断与动态解耦遮罩验证**：系统预留底部 $\ge 8\text{px}$ 呼吸区，随着发言持续吐字，轨道容器自动执行 `transform: translateY` 向上平滑滚动；`v3.6` 采用动态解耦遮罩（`--fade-mask-top-size`），两行包络内顶部遮罩归零，文字 100% 清晰露出，超长内容平滑过渡，无需任何手动滚动操作；
 3. **窗口拖拽缩放自适应**：悬浮窗边缘支持无级缩放（300px~1920px 宽度），排版引擎依托 `ResizeObserver` 实时自适应折行且左右严格锁定 28px 安全留白。
