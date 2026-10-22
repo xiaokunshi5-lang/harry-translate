@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Harry Translate · 国际会议实时双语同传系统</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: #000000;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* 顶部导航控制栏 */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 24px;
+            background: #0d1117;
+            border-bottom: 1px solid #1c2333;
+            z-index: 10;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .screen-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #38bdf8;
+            letter-spacing: 0.5px;
+        }
+        .status-badge {
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background-color: #ef4444;
+            box-shadow: 0 0 6px #ef4444;
+            transition: background-color 0.3s, box-shadow 0.3s;
+        }
+        .dot.connected {
+            background-color: #10b981;
+            box-shadow: 0 0 8px #10b981;
+        }
+
+        /* 极简低调的 Token 费用微型胶囊 */
+        .cost-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 3px 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            font-size: 12px;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .cost-chip:hover {
+            background: rgba(255, 255, 255, 0.07);
+            border-color: rgba(56, 189, 248, 0.25);
+            color: #94a3b8;
+        }
+        .cost-chip strong {
+            color: #cbd5e1;
+            font-weight: 500;
+        }
+
+        /* 费用详情浮层 (点击胶囊时展开) */
+        .cost-popover {
+            position: absolute;
+            top: 48px;
+            right: 180px;
+            background: #111726;
+            border: 1px solid #243048;
+            border-radius: 10px;
+            padding: 16px 20px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7);
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 260px;
+            z-index: 100;
+            font-size: 13px;
+        }
+        .cost-popover.active { display: flex; }
+        .pop-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #1e293b;
+        }
+        .pop-row {
+            display: flex;
+            justify-content: space-between;
+            color: #94a3b8;
+        }
+        .pop-row span:last-child {
+            color: #f1f5f9;
+            font-weight: 500;
+        }
+        .pop-actions {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            margin-top: 6px;
+            padding-top: 8px;
+            border-top: 1px solid #1e293b;
+        }
+        .btn-pop {
+            background: #1e2738;
+            color: #cbd5e1;
+            border: 1px solid #334155;
+            padding: 4px 10px;
+            border-radius: 5px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-pop:hover {
+            background: #2b3850;
+            color: #ffffff;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        button, a.btn-link {
+            background: #161d28;
+            color: #cbd5e1;
+            border: 1px solid #2a364a;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        button:hover, a.btn-link:hover {
+            background: #222d40;
+            border-color: #3b4c68;
+            color: #ffffff;
+        }
+        .btn-config-highlight {
+            background: rgba(2, 132, 199, 0.15);
+            border-color: rgba(56, 189, 248, 0.35);
+            color: #38bdf8;
+        }
+        .btn-config-highlight:hover {
+            background: rgba(2, 132, 199, 0.3);
+            border-color: #38bdf8;
+            color: #ffffff;
+        }
+
+        /* 主体布局 */
+        #main-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 单屏字幕滚动区 */
+        .subtitle-panel {
+            flex: 1;
+            padding: 40px 60px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+            scroll-behavior: smooth;
+        }
+        .subtitle-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+        .subtitle-panel::-webkit-scrollbar-thumb {
+            background: #1e2532;
+            border-radius: 4px;
+        }
+
+        /* 双栏分屏样式 */
+        .split-view {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+        .split-column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .split-column:first-child {
+            border-right: 2px solid #161d28;
+        }
+        .column-header {
+            padding: 10px 24px;
+            background: #0f1520;
+            border-bottom: 1px solid #1c2434;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .column-header.en { color: #38bdf8; }
+        .column-header.zh { color: #facc15; }
+
+        /* 句子卡片 (AC-14 滑动循环缓存) */
+        .sentence-card {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 12px 18px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+        .source-text {
+            font-size: var(--src-font, 24px);
+            color: #94a3b8;
+            font-weight: 400;
+            line-height: 1.45;
+            word-break: break-word;
+        }
+        .target-text {
+            font-size: var(--trans-font, 36px);
+            color: #facc15;
+            font-weight: 600;
+            line-height: 1.35;
+            letter-spacing: 0.4px;
+            word-break: break-word;
+        }
+        .current-active {
+            border-left: 4px solid #38bdf8;
+            background: rgba(56, 189, 248, 0.04);
+        }
+        .current-active .target-text::after {
+            content: "▋";
+            color: #38bdf8;
+            animation: blink 0.8s infinite;
+            margin-left: 6px;
+            font-size: 0.85em;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .empty-placeholder {
+            margin: auto;
+            text-align: center;
+            color: #475569;
+            font-size: 20px;
+            letter-spacing: 1px;
+        }
+
+        /* 主控仪表板入口样式 (访问 / 时的界面) */
+        .dashboard-view {
+            margin: auto;
+            max-width: 920px;
+            padding: 36px 24px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+            width: 100%;
+        }
+        .dash-title {
+            font-size: 30px;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 6px;
+        }
+        .dash-desc {
+            font-size: 15px;
+            color: #94a3b8;
+            line-height: 1.6;
+        }
+        .dash-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-top: 6px;
+        }
+        @media (max-width: 860px) {
+            .dash-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        .dash-card {
+            background: #0f1520;
+            border: 1px solid #1f2a3e;
+            border-radius: 12px;
+            padding: 24px 16px;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            transition: all 0.25s ease;
+            cursor: pointer;
+        }
+        .dash-card:hover {
+            transform: translateY(-4px);
+            border-color: #38bdf8;
+            background: #141d2c;
+            box-shadow: 0 8px 24px rgba(56, 189, 248, 0.12);
+        }
+        .dash-card-icon {
+            font-size: 34px;
+        }
+        .dash-card-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+        .dash-card-subtitle {
+            font-size: 12px;
+            color: #94a3b8;
+            line-height: 1.4;
+        }
+        .badge-role {
+            display: inline-block;
+            font-size: 11px;
+            padding: 3px 9px;
+            border-radius: 20px;
+            font-weight: 500;
+            align-self: center;
+        }
+        .badge-en { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
+        .badge-zh { background: rgba(250, 204, 21, 0.15); color: #facc15; }
+        .badge-split { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+        .badge-config { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+
+        /* 仪表板上的用量统计条 */
+        .dash-stats-bar {
+            background: #0d121c;
+            border: 1px solid #1a2334;
+            border-radius: 10px;
+            padding: 14px 24px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            font-size: 14px;
+            color: #94a3b8;
+        }
+        .dash-stat-item strong {
+            color: #f1f5f9;
+            font-size: 16px;
+            margin-left: 6px;
+        }
+        .dash-stat-cost strong {
+            color: #38bdf8;
+            font-size: 18px;
+            margin-left: 6px;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* 系统全局配置抽屉样式 (Apple Liquid Glass)                          */
+        /* ------------------------------------------------------------------ */
+        .drawer-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            z-index: 998;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        .drawer-backdrop.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .config-drawer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 460px;
+            max-width: 92vw;
+            height: 100vh;
+            background: rgba(13, 17, 26, 0.90);
+            backdrop-filter: blur(28px) saturate(180%);
+            -webkit-backdrop-filter: blur(28px) saturate(180%);
+            border-left: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: -12px 0 40px rgba(0, 0, 0, 0.8);
+            z-index: 999;
+            transform: translateX(100%);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .config-drawer.active {
+            transform: translateX(0);
+        }
+
+        .drawer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .drawer-title-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .drawer-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .drawer-subtitle {
+            font-size: 12px;
+            color: #64748b;
+        }
+        .drawer-close-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #94a3b8;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s ease;
+        }
+        .drawer-close-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.4);
+            color: #ef4444;
+        }
+
+        .drawer-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .drawer-body::-webkit-scrollbar {
+            width: 6px;
+        }
+        .drawer-body::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+        }
+
+        .drawer-section {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.025);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            padding: 16px;
+        }
+        .drawer-section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #38bdf8;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .drawer-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .drawer-label {
+            font-size: 12px;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        .drawer-input-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .drawer-input, .drawer-select {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: #f1f5f9;
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .drawer-input:focus, .drawer-select:focus {
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+        }
+        .drawer-input-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #cbd5e1;
+            border-radius: 6px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .drawer-input-btn:hover {
+            background: rgba(255, 255, 255, 0.16);
+            color: #ffffff;
+        }
+        .drawer-note {
+            font-size: 11px;
+            color: #64748b;
+            line-height: 1.4;
+        }
+        .masked-key-display {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.35);
+            padding: 5px 10px;
+            border-radius: 5px;
+            border: 1px dashed rgba(56, 189, 248, 0.3);
+            color: #38bdf8;
+            word-break: break-all;
+        }
+
+        .loopback-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            padding: 5px 10px;
+            border-radius: 6px;
+            line-height: 1.4;
+            font-weight: 500;
+        }
+        .loopback-badge.badge-success {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.35);
+        }
+        .loopback-badge.badge-warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.35);
+        }
+
+        .drawer-actions-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .btn-drawer-action {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #cbd5e1;
+            padding: 9px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+        .btn-drawer-action:hover {
+            background: rgba(56, 189, 248, 0.15);
+            border-color: rgba(56, 189, 248, 0.35);
+            color: #ffffff;
+        }
+
+        .drawer-footer {
+            padding: 16px 24px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(0, 0, 0, 0.3);
+        }
+        .btn-drawer-save {
+            width: 100%;
+            background: linear-gradient(135deg, #0284c7, #0369a1);
+            color: #ffffff;
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            padding: 11px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+            transition: all 0.2s ease;
+        }
+        .btn-drawer-save:hover {
+            background: linear-gradient(135deg, #0369a1, #075985);
+            box-shadow: 0 6px 16px rgba(2, 132, 199, 0.45);
+            transform: translateY(-1px);
+        }
+
+        /* Toast 悬浮通知 */
+        .toast-notification {
+            position: fixed;
+            bottom: 28px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            color: #f8fafc;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+            z-index: 2000;
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+        }
+        .toast-notification.active {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body style="--src-font: 24px; --trans-font: 36px;">
+
+    <header>
+        <div class="header-left">
+            <span class="screen-title" id="page-title">Harry Translate 国际会议实时同传系统</span>
+            <div class="status-badge" id="status-badge">
+                <span class="dot" id="ws-dot"></span>
+                <span id="ws-status">正在连接通道...</span>
+            </div>
+            <!-- 极简微型低调用量胶囊 (点击展开明细) -->
+            <div class="cost-chip" id="cost-chip" onclick="toggleCostPopover()" title="点击查看 Token 消耗与计费明细">
+                <span>🪙</span>
+                <span id="chip-tokens">0 Token</span>
+                <span>·</span>
+                <strong id="chip-cost">¥0.00</strong>
+            </div>
+        </div>
+        <div class="controls" id="header-controls">
+            <a href="/" class="btn-link" id="btn-home" style="display: none;">主控面板</a>
+            <button id="btn-open-drawer" class="btn-link btn-config-highlight" onclick="openConfigDrawer()" title="打开系统全局配置抽屉">⚙️ 系统配置</button>
+            <button onclick="changeFontSize(2)">字体 +</button>
+            <button onclick="changeFontSize(-2)">字体 -</button>
+            <button onclick="clearScreen()">清屏</button>
+            <button onclick="toggleFullScreen()">全屏模式 (F11)</button>
+        </div>
+    </header>
+
+    <!-- 费用详情气泡浮层 -->
+    <div class="cost-popover" id="cost-popover">
+        <div class="pop-title">
+            <span>📊 本次运行用量与花费</span>
+            <span style="cursor: pointer; color: #64748b;" onclick="toggleCostPopover()">✕</span>
+        </div>
+        <div class="pop-row">
+            <span>🎙️ 音频输入 Token</span>
+            <span id="pop-in-tokens">0</span>
+        </div>
+        <div class="pop-row">
+            <span>📝 文本输出 Token</span>
+            <span id="pop-out-tokens">0</span>
+        </div>
+        <div class="pop-row">
+            <span>∑ 累计总 Token</span>
+            <span id="pop-total-tokens">0</span>
+        </div>
+        <div class="pop-row" style="margin-top: 4px; padding-top: 6px; border-top: 1px dashed #1e293b;">
+            <span style="color: #38bdf8;">💰 预估总花费</span>
+            <span id="pop-cost" style="color: #38bdf8; font-size: 15px; font-weight: 700;">¥0.0000</span>
+        </div>
+        <div style="font-size: 11px; color: #475569; line-height: 1.4; margin-top: 2px;">
+            计费标准：音频输入 ¥40/M Token，文本输出 ¥100/M Token (ASR免费)
+        </div>
+        <div class="pop-actions">
+            <button class="btn-pop" onclick="resetStats()">🔄 清零统计</button>
+            <button class="btn-pop" onclick="toggleChipVisibility()">👁️ 隐藏胶囊</button>
+        </div>
+    </div>
+
+    <div id="main-container">
+        <!-- 动态由 JavaScript 根据路由加载对应视图 -->
+    </div>
+
+    <!-- ⚙️ 系统全局配置抽屉背景遮罩 -->
+    <div id="drawer-backdrop" class="drawer-backdrop" onclick="closeConfigDrawer()"></div>
+
+    <!-- ⚙️ 系统全局配置抽屉 -->
+    <aside id="config-drawer" class="config-drawer" aria-label="系统全局配置抽屉">
+        <div class="drawer-header">
+            <div class="drawer-title-group">
+                <div class="drawer-title">⚙️ 系统全局配置抽屉</div>
+                <div class="drawer-subtitle">DashScope 密钥、音频输入源与同传引擎统一配置</div>
+            </div>
+            <button id="drawer-close-btn" class="drawer-close-btn" onclick="closeConfigDrawer()" title="关闭抽屉 (Esc)">✕</button>
+        </div>
+
+        <div class="drawer-body">
+            <!-- 1. API Key 配置 -->
+            <div class="drawer-section">
+                <div class="drawer-section-title">🔑 阿里云百炼 DashScope API 密钥</div>
+                <div class="drawer-field">
+                    <div class="drawer-label">当前生效 Key：</div>
+                    <span id="drawer-masked-key" class="masked-key-display">正在获取...</span>
+                </div>
+                <div class="drawer-field">
+                    <div class="drawer-label">更新 API Key：</div>
+                    <div class="drawer-input-row">
+                        <input type="password" id="drawer-api-key" class="drawer-input" placeholder="在此输入新的 DashScope API Key">
+                        <button type="button" id="btn-toggle-key" class="drawer-input-btn" onclick="toggleApiKeyVisibility()" title="显示/隐藏明文">👁️</button>
+                    </div>
+                    <div class="drawer-note">留空保持当前 Key 不变。支持通义千问与百炼同传服务。</div>
+                </div>
+            </div>
+
+            <!-- 2. 音频输入设备选择 (双通道物理隔离) -->
+            <div class="drawer-section">
+                <div class="drawer-section-title">🎙️ 音频输入设备绑定 (双通道物理隔离)</div>
+                <div class="drawer-field">
+                    <div class="drawer-label">Channel A (麦克风 / 中方发言)：</div>
+                    <select id="drawer-device-a" class="drawer-select">
+                        <option value="">正在检测音频设备...</option>
+                    </select>
+                    <div class="drawer-note">中方发言通道，将麦克风拾音实时直传并翻译为纯正英文。</div>
+                </div>
+                <div class="drawer-field">
+                    <div class="drawer-label">Channel B (会议内录 / 外宾发言)：</div>
+                    <select id="drawer-device-b" class="drawer-select">
+                        <option value="">正在检测音频设备...</option>
+                    </select>
+                    <div style="margin-top: 4px;">
+                        <span id="drawer-loopback-badge" class="loopback-badge badge-warning">自检中...</span>
+                    </div>
+                    <div class="drawer-note">外宾发言通道，采集会议回环音频并翻译为中文。未配置虚拟声卡时安全静默，绝不盗用麦克风。</div>
+                </div>
+            </div>
+
+            <!-- 3. 同传引擎模式选择 -->
+            <div class="drawer-section">
+                <div class="drawer-section-title">⚡ 实时同传引擎模型</div>
+                <div class="drawer-field">
+                    <div class="drawer-label">同传模型选择：</div>
+                    <select id="drawer-engine" class="drawer-select">
+                        <option value="gummy-realtime-v1">⚡ gummy-realtime-v1 (50ms 零拷贝 · 延迟 <450ms · 推荐)</option>
+                        <option value="qwen3.8-livetranslate-flash-realtime">🧠 qwen3.8-livetranslate-flash-realtime (全双工大模型 · 60语种热词支持)</option>
+                    </select>
+                    <div class="drawer-note">Gummy-v1 直连 C 扩展推流，单帧切片 50ms (800采样点)，极致低延迟。</div>
+                </div>
+            </div>
+
+            <!-- 4. HUD 悬浮窗远程管控 -->
+            <div class="drawer-section">
+                <div class="drawer-section-title">🍏 悬浮窗 HUD 远程管控</div>
+                <div class="drawer-actions-grid">
+                    <button type="button" id="drawer-btn-unlock-hud" class="btn-drawer-action" onclick="unlockHudRemote()">🔓 远程解除穿透锁定</button>
+                    <button type="button" id="drawer-btn-stealth-hud" class="btn-drawer-action" onclick="toggleStealthRemote()">👁️ 切换投屏隐身</button>
+                </div>
+                <div class="drawer-note">当悬浮窗锁定鼠标穿透后无法点击时，可在此一键解除锁定；开启隐身后桌面共享防捕获。</div>
+            </div>
+        </div>
+
+        <div class="drawer-footer">
+            <button type="button" id="drawer-save-btn" class="btn-drawer-save" onclick="saveDrawerConfig()">💾 保存配置并即时热生效</button>
+        </div>
+    </aside>
+
+    <!-- 浮动 Toast 通知 -->
+    <div id="toast-notification" class="toast-notification"></div>
+
+    <script>
+        // AC-14: 严格锁定 50 节点滑动循环窗口（防长时会议 DOM 膨胀与内存泄漏）
+        const MAX_CARDS = 50;
+
+        const mainContainer = document.getElementById("main-container");
+        const pageTitle = document.getElementById("page-title");
+        const wsDot = document.getElementById("ws-dot");
+        const wsStatus = document.getElementById("ws-status");
+        const btnHome = document.getElementById("btn-home");
+        const costChip = document.getElementById("cost-chip");
+        const costPopover = document.getElementById("cost-popover");
+
+        const chipTokens = document.getElementById("chip-tokens");
+        const chipCost = document.getElementById("chip-cost");
+        const popInTokens = document.getElementById("pop-in-tokens");
+        const popOutTokens = document.getElementById("pop-out-tokens");
+        const popTotalTokens = document.getElementById("pop-total-tokens");
+        const popCost = document.getElementById("pop-cost");
+
+        // 累计用量状态
+        let globalStats = {
+            total_tokens: 0,
+            input_tokens: 0,
+            output_tokens: 0,
+            cost_rmb: 0.0
+        };
+
+        function updateUsageDisplay(stats) {
+            if (!stats) return;
+            globalStats = stats;
+            const kTokens = stats.total_tokens >= 1000 ? (stats.total_tokens / 1000).toFixed(1) + 'k' : stats.total_tokens;
+            chipTokens.textContent = `${kTokens} Token`;
+            chipCost.textContent = `¥${stats.cost_rmb.toFixed(2)}`;
+
+            popInTokens.textContent = stats.input_tokens.toLocaleString();
+            popOutTokens.textContent = stats.output_tokens.toLocaleString();
+            popTotalTokens.textContent = stats.total_tokens.toLocaleString();
+            popCost.textContent = `¥${stats.cost_rmb.toFixed(4)}`;
+
+            // 如果主控台存在统计条，同步更新
+            const dashTok = document.getElementById("dash-tok");
+            const dashCost = document.getElementById("dash-cost");
+            if (dashTok) dashTok.textContent = stats.total_tokens.toLocaleString();
+            if (dashCost) dashCost.textContent = `¥${stats.cost_rmb.toFixed(4)}`;
+        }
+
+        function toggleCostPopover() {
+            costPopover.classList.toggle("active");
+        }
+
+        function toggleChipVisibility() {
+            costChip.style.display = costChip.style.display === "none" ? "inline-flex" : "none";
+            costPopover.classList.remove("active");
+        }
+
+        async function fetchStats() {
+            try {
+                const res = await fetch("/api/stats");
+                const data = await res.json();
+                updateUsageDisplay(data);
+            } catch (e) {}
+        }
+
+        async function resetStats() {
+            try {
+                await fetch("/api/stats/reset", { method: "POST" });
+                fetchStats();
+            } catch (e) {}
+        }
+
+        // 解析当前路由模式
+        const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
+        let mode = "dashboard";
+        if (pathname === "/en") mode = "en";
+        else if (pathname === "/zh") mode = "zh";
+        else if (pathname === "/split") mode = "split";
+
+        // 单通道状态追踪 (AC-14 50 节点滑动循环窗口)
+        class ChannelStreamHandler {
+            constructor(channelName, containerElement) {
+                this.channel = channelName;
+                this.container = containerElement;
+                this.activeCard = null;
+                this.currentSentenceId = null;
+                this.activeNodeMap = new Map();
+                this.rafScrollPending = false;
+                this.ws = null;
+            }
+
+            connect(dotElem, statusElem, statusPrefix) {
+                const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+                this.ws = new WebSocket(`${protocol}//${location.host}/ws/${this.channel}`);
+
+                this.ws.onopen = () => {
+                    if (dotElem) dotElem.classList.add("connected");
+                    if (statusElem) statusElem.textContent = `${statusPrefix}已就绪 (正在监听麦克风)`;
+                };
+
+                this.ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        this.handleSubtitle(data);
+                        if (data.usage) {
+                            // 收到当句 usage 时定期刷新全局统计
+                            fetchStats();
+                        }
+                    } catch (e) {
+                        console.error("解析字幕消息错误:", e);
+                    }
+                };
+
+                this.ws.onclose = () => {
+                    if (dotElem) dotElem.classList.remove("connected");
+                    if (statusElem) statusElem.textContent = `${statusPrefix}已断开，3秒后重连...`;
+                    setTimeout(() => this.connect(dotElem, statusElem, statusPrefix), 3000);
+                };
+            }
+
+            handleSubtitle(data) {
+                const placeholder = this.container.querySelector(".empty-placeholder");
+                if (placeholder) placeholder.remove();
+
+                // 1. 新句子生命周期处理
+                if (data.id !== this.currentSentenceId || !this.activeCard) {
+                    if (this.activeCard) {
+                        this.activeCard.classList.remove("current-active");
+                    }
+                    this.currentSentenceId = data.id;
+                    this.activeCard = document.createElement("div");
+                    this.activeCard.className = "sentence-card current-active";
+                    this.activeCard.dataset.id = data.id || ("sent_" + Date.now());
+
+                    // 构建并直接缓存子节点引用，杜绝后续重排查询
+                    const srcDiv = document.createElement("div");
+                    srcDiv.className = "source-text";
+                    const transDiv = document.createElement("div");
+                    transDiv.className = "target-text";
+
+                    this.activeCard.appendChild(srcDiv);
+                    this.activeCard.appendChild(transDiv);
+                    this.activeCard._srcNode = srcDiv;
+                    this.activeCard._transNode = transDiv;
+
+                    this.container.appendChild(this.activeCard);
+                    this.activeNodeMap.set(this.activeCard.dataset.id, this.activeCard);
+
+                    // 滑动窗口检查：严格限制最多 50 节点，注销引用防泄漏
+                    while (this.container.children.length > MAX_CARDS) {
+                        const oldest = this.container.firstElementChild;
+                        if (oldest && oldest.dataset && oldest.dataset.id) {
+                            this.activeNodeMap.delete(oldest.dataset.id);
+                        }
+                        this.container.removeChild(oldest);
+                    }
+                }
+
+                // 2. O(1) textContent 内存直写，杜绝同步回流与 querySelector 开销
+                if (data.source !== undefined && data.source !== null) {
+                    this.activeCard._srcNode.textContent = data.source;
+                }
+                if (data.target !== undefined && data.target !== null) {
+                    this.activeCard._transNode.textContent = data.target;
+                }
+
+                // 3. 定稿状态标记
+                if (data.is_final) {
+                    this.activeCard.classList.remove("current-active");
+                    this.activeCard = null;
+                }
+
+                // 4. requestAnimationFrame 滚动节流
+                if (!this.rafScrollPending) {
+                    this.rafScrollPending = true;
+                    requestAnimationFrame(() => {
+                        this.container.scrollTop = this.container.scrollHeight;
+                        this.rafScrollPending = false;
+                    });
+                }
+            }
+
+            clear() {
+                this.container.innerHTML = "";
+                this.activeNodeMap.clear();
+                this.activeCard = null;
+                this.currentSentenceId = null;
+            }
+        }
+
+        let enHandler = null;
+        let zhHandler = null;
+
+        // 根据路由渲染视图 (AC-13: 路由物理隔离)
+        if (mode === "dashboard") {
+            btnHome.style.display = "none";
+            pageTitle.textContent = "会议实时同传系统 - 主控台";
+            wsDot.classList.add("connected");
+            wsStatus.textContent = "服务在线";
+
+            mainContainer.innerHTML = `
+                <div class="dashboard-view">
+                    <div>
+                        <div class="dash-title">会议实时双通道同传投屏系统</div>
+                        <div class="dash-desc">搭载阿里云百炼极速流式同传大模型，支持同一麦克风拾音、中英双向独立并发同传</div>
+                    </div>
+
+                    <div class="dash-stats-bar">
+                        <div class="dash-stat-item">
+                            <span>🪙 本次会议累计 Token:</span>
+                            <strong id="dash-tok">0</strong>
+                        </div>
+                        <div class="dash-stat-item dash-stat-cost">
+                            <span>💰 预估总花费:</span>
+                            <strong id="dash-cost">¥0.0000</strong>
+                        </div>
+                        <button class="btn-pop" onclick="resetStats()">🔄 清零统计</button>
+                    </div>
+
+                    <div class="dash-grid">
+                        <a href="/en" class="dash-card">
+                            <div class="dash-card-icon">🇺🇸</div>
+                            <span class="badge-role badge-en">面向外宾 / 英文大屏</span>
+                            <div class="dash-card-title">中译英专属大屏</div>
+                            <div class="dash-card-subtitle">中文发言实时翻译为纯正英语，可全屏投送给外宾屏幕</div>
+                        </a>
+                        <a href="/zh" class="dash-card">
+                            <div class="dash-card-icon">🇨🇳</div>
+                            <span class="badge-role badge-zh">面向中方 / 中文大屏</span>
+                            <div class="dash-card-title">英译中专属大屏</div>
+                            <div class="dash-card-subtitle">外宾英文发言实时翻译为通顺中文，可全屏投送给中方屏幕</div>
+                        </a>
+                        <a href="/split" class="dash-card">
+                            <div class="dash-card-icon">🖥️</div>
+                            <span class="badge-role badge-split">现场控台监看</span>
+                            <div class="dash-card-title">左右双栏同屏监看</div>
+                            <div class="dash-card-subtitle">在一台电脑上左侧中译英、右侧英译中，方便控台实时对照</div>
+                        </a>
+                        <div class="dash-card" onclick="openConfigDrawer()">
+                            <div class="dash-card-icon">⚙️</div>
+                            <span class="badge-role badge-config">系统全局配置</span>
+                            <div class="dash-card-title">系统全局配置抽屉</div>
+                            <div class="dash-card-subtitle">设置 API Key、绑定麦克风与回环声卡、切换引擎与悬浮窗管控</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else if (mode === "en") {
+            btnHome.style.display = "inline-flex";
+            pageTitle.textContent = "中译英实时大屏 (面向外宾 / 英文受众)";
+            mainContainer.innerHTML = `
+                <div class="subtitle-panel" id="en-container">
+                    <div class="empty-placeholder">中译英通道就绪，发言时英文字幕将在此实时呈现...</div>
+                </div>
+            `;
+            const container = document.getElementById("en-container");
+            enHandler = new ChannelStreamHandler("en", container);
+            enHandler.connect(wsDot, wsStatus, "英文通道");
+        } else if (mode === "zh") {
+            btnHome.style.display = "inline-flex";
+            pageTitle.textContent = "英译中实时大屏 (面向中方 / 中文受众)";
+            mainContainer.innerHTML = `
+                <div class="subtitle-panel" id="zh-container">
+                    <div class="empty-placeholder">英译中通道就绪，发言时中文字幕将在此实时呈现...</div>
+                </div>
+            `;
+            const container = document.getElementById("zh-container");
+            zhHandler = new ChannelStreamHandler("zh", container);
+            zhHandler.connect(wsDot, wsStatus, "中文通道");
+        } else if (mode === "split") {
+            btnHome.style.display = "inline-flex";
+            pageTitle.textContent = "双向同传对照监看屏 (左右分栏)";
+            wsDot.classList.add("connected");
+            wsStatus.textContent = "双通道监看已就绪";
+
+            mainContainer.innerHTML = `
+                <div class="split-view">
+                    <div class="split-column">
+                        <div class="column-header en">
+                            <span>🇺🇸 中译英实时流 (面向外宾)</span>
+                            <span id="split-en-status" style="font-size: 12px; font-weight: normal; color: #94a3b8;">连接中...</span>
+                        </div>
+                        <div class="subtitle-panel" id="split-en-container">
+                            <div class="empty-placeholder">等待发言...</div>
+                        </div>
+                    </div>
+                    <div class="split-column">
+                        <div class="column-header zh">
+                            <span>🇨🇳 英译中实时流 (面向中方)</span>
+                            <span id="split-zh-status" style="font-size: 12px; font-weight: normal; color: #94a3b8;">连接中...</span>
+                        </div>
+                        <div class="subtitle-panel" id="split-zh-container">
+                            <div class="empty-placeholder">等待发言...</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            const enContainer = document.getElementById("split-en-container");
+            const zhContainer = document.getElementById("split-zh-container");
+            const splitEnStatus = document.getElementById("split-en-status");
+            const splitZhStatus = document.getElementById("split-zh-status");
+
+            enHandler = new ChannelStreamHandler("en", enContainer);
+            enHandler.connect(null, splitEnStatus, "已连接");
+
+            zhHandler = new ChannelStreamHandler("zh", zhContainer);
+            zhHandler.connect(null, splitZhStatus, "已连接");
+        }
+
+        // 初始拉取一次统计
+        fetchStats();
+
+        // 字号调节
+        function changeFontSize(delta) {
+            const body = document.body;
+            let curTrans = parseInt(getComputedStyle(body).getPropertyValue('--trans-font'));
+            let curSrc = parseInt(getComputedStyle(body).getPropertyValue('--src-font'));
+            curTrans = Math.max(18, Math.min(64, curTrans + delta));
+            curSrc = Math.max(14, Math.min(48, curSrc + delta));
+            body.style.setProperty('--trans-font', `${curTrans}px`);
+            body.style.setProperty('--src-font', `${curSrc}px`);
+        }
+
+        // 清屏
+        function clearScreen() {
+            if (enHandler) enHandler.clear();
+            if (zhHandler) zhHandler.clear();
+        }
+
+        // 全屏切换
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    alert(`全屏切换失败: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // 系统全局配置抽屉交互逻辑
+        // ------------------------------------------------------------------
+        function openConfigDrawer() {
+            const drawer = document.getElementById("config-drawer");
+            const backdrop = document.getElementById("drawer-backdrop");
+            if (drawer) drawer.classList.add("active");
+            if (backdrop) backdrop.classList.add("active");
+            loadDrawerConfig();
+        }
+
+        function closeConfigDrawer() {
+            const drawer = document.getElementById("config-drawer");
+            const backdrop = document.getElementById("drawer-backdrop");
+            if (drawer) drawer.classList.remove("active");
+            if (backdrop) backdrop.classList.remove("active");
+        }
+
+        // 按键监听：Escape 键退出抽屉
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") {
+                closeConfigDrawer();
+                if (costPopover) costPopover.classList.remove("active");
+            }
+        });
+
+        // 切换密码输入框明文/密文
+        function toggleApiKeyVisibility() {
+            const input = document.getElementById("drawer-api-key");
+            const btn = document.getElementById("btn-toggle-key");
+            if (!input) return;
+            if (input.type === "password") {
+                input.type = "text";
+                if (btn) btn.textContent = "🙈";
+            } else {
+                input.type = "password";
+                if (btn) btn.textContent = "👁️";
+            }
+        }
+
+        // Toast 消息展示
+        let toastTimer = null;
+        function showToast(message) {
+            const toast = document.getElementById("toast-notification");
+            if (!toast) return;
+            toast.textContent = message;
+            toast.classList.add("active");
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.remove("active");
+            }, 3500);
+        }
+
+        // 加载抽屉中的系统当前配置数据
+        async function loadDrawerConfig() {
+            try {
+                const res = await fetch("/api/meta");
+                if (!res.ok) return;
+                const data = await res.json();
+
+                // 1. DashScope API Key 脱敏展示
+                const maskedSpan = document.getElementById("drawer-masked-key");
+                const maskedKey = data.api_key_masked || data.dashscope_key_masked || data.masked_api_key || "";
+                if (maskedSpan) {
+                    maskedSpan.textContent = maskedKey ? maskedKey : "未配置 (当前不可用)";
+                }
+
+                // 2. 声卡设备列表及选中项
+                const selA = document.getElementById("drawer-device-a");
+                const selB = document.getElementById("drawer-device-b");
+                const devices = data.devices || [];
+
+                if (selA && selB) {
+                    selA.innerHTML = "";
+                    selB.innerHTML = "";
+
+                    devices.forEach(dev => {
+                        const optA = document.createElement("option");
+                        optA.value = dev.index;
+                        optA.textContent = `[${dev.index}] ${dev.name}`;
+                        selA.appendChild(optA);
+
+                        const optB = document.createElement("option");
+                        optB.value = dev.index;
+                        optB.textContent = `[${dev.index}] ${dev.name}${dev.is_loopback ? " (虚拟内录推荐)" : ""}`;
+                        selB.appendChild(optB);
+                    });
+
+                    if (data.channel_a_device !== null && data.channel_a_device !== undefined) {
+                        selA.value = String(data.channel_a_device);
+                    }
+                    if (data.channel_b_device !== null && data.channel_b_device !== undefined) {
+                        selB.value = String(data.channel_b_device);
+                    }
+                }
+
+                // 3. Channel B 回环声卡自检徽标
+                const loopbackBadge = document.getElementById("drawer-loopback-badge");
+                if (loopbackBadge) {
+                    const hasLoopback = devices.some(d => d.is_loopback);
+                    const isBIdle = Boolean(data.channel_b_idle);
+                    if (hasLoopback && !isBIdle) {
+                        loopbackBadge.className = "loopback-badge badge-success";
+                        loopbackBadge.textContent = "✅ 已检测到虚拟声卡 (BlackHole / 立体声混音)";
+                    } else if (hasLoopback) {
+                        loopbackBadge.className = "loopback-badge badge-success";
+                        loopbackBadge.textContent = "✅ 已检测到虚拟声卡 (就绪待命)";
+                    } else {
+                        loopbackBadge.className = "loopback-badge badge-warning";
+                        loopbackBadge.textContent = "⚠️ 未配置虚拟声卡，Channel B 安全静默，绝不盗用麦克风";
+                    }
+                }
+
+                // 4. 同传引擎选择
+                const engineSel = document.getElementById("drawer-engine");
+                if (engineSel) {
+                    const activeEngine = data.active_engine || data.engine_model || "gummy-realtime-v1";
+                    engineSel.value = activeEngine.includes("gummy") ? "gummy-realtime-v1" : "qwen3.8-livetranslate-flash-realtime";
+                }
+            } catch (err) {
+                console.error("加载抽屉配置失败:", err);
+            }
+        }
+
+        // 保存抽屉配置到后端
+        async function saveDrawerConfig() {
+            const saveBtn = document.getElementById("drawer-save-btn");
+            const origText = saveBtn ? saveBtn.textContent : "";
+            if (saveBtn) {
+                saveBtn.textContent = "💾 正在保存配置...";
+                saveBtn.disabled = true;
+            }
+
+            try {
+                const apiKeyInput = document.getElementById("drawer-api-key");
+                const selA = document.getElementById("drawer-device-a");
+                const selB = document.getElementById("drawer-device-b");
+                const engineSel = document.getElementById("drawer-engine");
+
+                const payload = {};
+                if (apiKeyInput && apiKeyInput.value.trim()) {
+                    payload.api_key = apiKeyInput.value.trim();
+                }
+                if (selA && selA.value !== "") {
+                    payload.channel_a_device = parseInt(selA.value, 10);
+                }
+                if (selB && selB.value !== "") {
+                    payload.channel_b_device = parseInt(selB.value, 10);
+                }
+                if (engineSel && engineSel.value) {
+                    payload.engine_model = engineSel.value;
+                }
+
+                const res = await fetch("/api/config", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                const result = await res.json();
+
+                if (res.ok && result.status === "ok") {
+                    if (apiKeyInput) apiKeyInput.value = "";
+                    showToast("✅ 系统全局配置已成功保存并即时热生效！");
+                    await loadDrawerConfig();
+                } else {
+                    showToast("⚠️ 配置保存失败: " + (result.message || "未知错误"));
+                }
+            } catch (err) {
+                showToast("⚠️ 保存网络请求失败: " + err.message);
+            } finally {
+                if (saveBtn) {
+                    saveBtn.textContent = origText;
+                    saveBtn.disabled = false;
+                }
+            }
+        }
+
+        // HUD 远程控制：解除鼠标穿透
+        async function unlockHudRemote() {
+            try {
+                const res = await fetch("/api/hud/lock", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ locked: false })
+                });
+                const result = await res.json();
+                if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.toggle_lock === "function") {
+                    try { await window.pywebview.api.toggle_lock(false); } catch(e) {}
+                }
+                showToast("🔓 悬浮窗鼠标穿透已远程解除，现在可在浮窗上自由点击与拖拽！");
+            } catch (err) {
+                showToast("⚠️ 远程解除穿透失败: " + err.message);
+            }
+        }
+
+        // HUD 远程控制：切换投屏隐身
+        let isStealthActive = false;
+        async function toggleStealthRemote() {
+            isStealthActive = !isStealthActive;
+            try {
+                if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.set_stealth_mode === "function") {
+                    await window.pywebview.api.set_stealth_mode(isStealthActive);
+                }
+                const stateStr = isStealthActive ? "开启 (Zoom/腾讯会议共享屏幕防捕获)" : "关闭 (正常屏幕抓取可见)";
+                showToast(`👁️ 悬浮窗投屏防捕获隐身模式已${stateStr}`);
+            } catch (err) {
+                showToast("⚠️ 切换投屏隐身失败: " + err.message);
+            }
+        }
+
+        // 页面初始化：检测 URL 参数 ?drawer=open 或 #drawer 自动打开抽屉
+        function checkAutoOpenDrawer() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get("drawer") === "open" || window.location.hash === "#drawer") {
+                openConfigDrawer();
+            }
+        }
+
+        // DOM 载入后检查是否需要自动弹出抽屉
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", checkAutoOpenDrawer);
+        } else {
+            checkAutoOpenDrawer();
+        }
+    </script>
+</body>
+</html>
