@@ -1,0 +1,30 @@
+.env
+.env.*
+!.env.example
+.venv/
+**/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.DS_Store
+.agents/
+
+# Local test output and recordings
+tests/benchmark_result.json
+tests/m3_results.json
+tests/challenger_stress_results.json
+tests/report.json
+tests/report.md
+*.log
+*.wav
+*.mp3
+*.m4a
+recordings/
+output/
+
+# Editors
+.idea/
+.vscode/
+*.swp
