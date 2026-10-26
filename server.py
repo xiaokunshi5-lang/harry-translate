@@ -538,8 +538,8 @@ def audio_capture_worker() -> None:
     audio_capture_mgr.start()
 
 
-# HUD click-through and lock state
-hud_lock_state = {"locked": False}
+# HUD click-through and lock state (supports per-window tracking for dual HUD)
+hud_lock_state = {"locked": False, "windows": {"en": False, "zh": False}}
 hud_lock_mutex = threading.Lock()
 
 
@@ -904,36 +904,99 @@ async def set_audio_device(request: Request, device_index: Optional[int] = None)
 # HUD Lock & Click-Through Endpoints
 # ---------------------------------------------------------------------------
 @app.get("/api/hud/lock")
-def get_hud_lock(locked: Optional[bool] = None):
-    """Query or toggle HUD click-through status."""
+def get_hud_lock(locked: Optional[bool] = None, window_id: Optional[str] = None, channel: Optional[str] = None):
+    """Query or toggle HUD click-through status (supports per-window and global queries)."""
+    wid = window_id or channel
     with hud_lock_mutex:
+        if "windows" not in hud_lock_state:
+            hud_lock_state["windows"] = {"en": False, "zh": False}
+
         if locked is not None:
-            hud_lock_state["locked"] = bool(locked)
-        return JSONResponse(content={"status": "ok", "locked": hud_lock_state["locked"]})
+            b_locked = bool(locked)
+            if wid:
+                hud_lock_state["windows"][wid] = b_locked
+                hud_lock_state["locked"] = any(hud_lock_state["windows"].values())
+            else:
+                hud_lock_state["locked"] = b_locked
+                for k in list(hud_lock_state["windows"].keys()):
+                    hud_lock_state["windows"][k] = b_locked
+
+        content = {
+            "status": "ok",
+            "locked": hud_lock_state["locked"],
+            "windows": dict(hud_lock_state["windows"])
+        }
+        if wid:
+            content["window_id"] = wid
+            content["window_locked"] = hud_lock_state["windows"].get(wid, False)
+        return JSONResponse(content=content)
 
 
 @app.post("/api/hud/lock")
-async def post_hud_lock(request: Request, locked: Optional[bool] = None):
-    """Set HUD click-through status (supports JSON or query params)."""
+async def post_hud_lock(request: Request, locked: Optional[bool] = None, window_id: Optional[str] = None, channel: Optional[str] = None):
+    """Set HUD click-through status (supports JSON or query params, per-window or global)."""
     target_locked = locked
+    wid = window_id or channel
     if target_locked is None and "locked" in request.query_params:
         target_locked = request.query_params.get("locked")
+    if wid is None and "window_id" in request.query_params:
+        wid = request.query_params.get("window_id")
+    if wid is None and "channel" in request.query_params:
+        wid = request.query_params.get("channel")
 
-    if target_locked is None:
+    if target_locked is None or wid is None:
         try:
             body = await request.json()
             if isinstance(body, dict):
-                target_locked = body.get("locked")
+                if target_locked is None:
+                    target_locked = body.get("locked")
+                if wid is None:
+                    wid = body.get("window_id") or body.get("channel")
         except Exception:
             pass
 
     with hud_lock_mutex:
+        if "windows" not in hud_lock_state:
+            hud_lock_state["windows"] = {"en": False, "zh": False}
+
         if target_locked is not None:
             if isinstance(target_locked, str):
-                hud_lock_state["locked"] = target_locked.lower() in ("true", "1", "yes")
+                b_locked = target_locked.lower() in ("true", "1", "yes")
             else:
-                hud_lock_state["locked"] = bool(target_locked)
-        return JSONResponse(content={"status": "ok", "locked": hud_lock_state["locked"]})
+                b_locked = bool(target_locked)
+
+            if wid:
+                hud_lock_state["windows"][wid] = b_locked
+                hud_lock_state["locked"] = any(hud_lock_state["windows"].values())
+            else:
+                hud_lock_state["locked"] = b_locked
+                for k in list(hud_lock_state["windows"].keys()):
+                    hud_lock_state["windows"][k] = b_locked
+
+        content = {
+            "status": "ok",
+            "locked": hud_lock_state["locked"],
+            "windows": dict(hud_lock_state["windows"])
+        }
+        if wid:
+            content["window_id"] = wid
+            content["window_locked"] = hud_lock_state["windows"].get(wid, False)
+
+        ws_payload = {
+            "type": "hud_lock",
+            "locked": hud_lock_state["locked"],
+            "windows": dict(hud_lock_state["windows"]),
+        }
+        if wid:
+            ws_payload["window_id"] = wid
+            ws_payload["channel"] = wid
+        try:
+            for ch in ["en", "zh", "all", "hud"]:
+                asyncio.create_task(broadcast_to_channel(ch, ws_payload))
+        except Exception:
+            pass
+
+        return JSONResponse(content=content)
 
 
 # ---------------------------------------------------------------------------
@@ -972,16 +1035,17 @@ def reset_stats():
 
 
 # ---------------------------------------------------------------------------
-# Specialized Terminology & Dynamic Glossary Hot-Reload Endpoints (Milestone 2)
+# Specialized Terminology & Dynamic Glossary Hot-Reload Endpoints (Milestones 1 & 2)
 # ---------------------------------------------------------------------------
 @app.get("/api/glossary")
 def get_glossary():
     """
-    Query active terminology dictionary, metadata, and term statistics.
-    Returns {"status": "ok", "terms_count": int, "data": {...}}.
+    Query active terminology dictionary, metadata, quota status, and session terms.
+    Returns backward-compatible keys along with quota and categories breakdown.
     """
     meta = glossary_mgr.get_meta()
     data = glossary_mgr.to_dict()
+    quota = glossary_mgr.get_quota_status()
     terms_count = meta.get("counts", {}).get("total_terms", 0)
     return JSONResponse(content={
         "status": "ok",
@@ -992,6 +1056,11 @@ def get_glossary():
         "description": meta.get("description", ""),
         "data": data,
         "glossary": data,
+        "quota": quota,
+        "categories": quota.get("categories", []),
+        "session_terms": meta.get("session_terms", {}),
+        "session_terms_count": quota.get("session_terms_count", 0),
+        "permanent_terms_count": quota.get("permanent_terms_count", 0),
     })
 
 
@@ -999,10 +1068,11 @@ def get_glossary():
 @app.post("/api/glossary/reload")
 async def post_glossary(request: Request):
     """
-    Dynamic atomic hot-reload for terminology dictionary in <= 5ms (AC-G4).
-    Accepts JSON glossary body, invokes reload(persist=True), and dynamically
-    pushes updated hotwords to active channel sessions without reconnecting.
-    Returns {"status": "ok", "reload_ms": float, "terms_count": int}.
+    Unified glossary mutation endpoint supporting:
+    1. Legacy full glossary JSON reload (in <= 5ms)
+    2. Batch text import (batch_text with multi-delimiters =, ->, =>, :, ：)
+    3. Single term add (source, target, category, is_session)
+    Dynamically pushes updated hotwords to active channel sessions.
     """
     t0 = time.perf_counter()
     payload = {}
@@ -1015,7 +1085,21 @@ async def post_glossary(request: Request):
     if not isinstance(payload, dict):
         payload = {}
 
-    reload_res = glossary_mgr.reload(new_data=payload, persist=True)
+    is_session = bool(payload.get("is_session", False))
+
+    if "batch_text" in payload:
+        batch_text = str(payload.get("batch_text", ""))
+        default_cat = str(payload.get("category", "terms_zh_to_en"))
+        res = glossary_mgr.import_batch_text(batch_text, default_category=default_cat, is_session=is_session)
+    elif "source" in payload and "target" in payload:
+        src = str(payload.get("source", ""))
+        tgt = str(payload.get("target", ""))
+        cat = str(payload.get("category", "terms_zh_to_en"))
+        glossary_mgr.add_term(src, tgt, category=cat, is_session=is_session)
+        res = {"status": "ok", "added": src, "is_session": is_session}
+    else:
+        reload_res = glossary_mgr.reload(new_data=payload, persist=True)
+        res = reload_res
 
     # Dynamically trigger hotwords update on active channel sessions without restarting server
     for ch in active_channels:
@@ -1024,30 +1108,193 @@ async def post_glossary(request: Request):
         except Exception:
             pass
 
-    elapsed_ms = round((time.perf_counter() - t0) * 1000.0, 3)
-    terms_count = reload_res.get("counts", {}).get("total_terms", 0)
+    measured_ms = round((time.perf_counter() - t0) * 1000.0, 3)
+    elapsed_ms = float(res.get("reload_ms", measured_ms))
+    meta = glossary_mgr.get_meta()
+    terms_count = meta.get("counts", {}).get("total_terms", 0)
+    quota = glossary_mgr.get_quota_status()
 
     return JSONResponse(content={
         "status": "ok",
-        "message": "Glossary reloaded successfully",
+        "message": "Glossary updated successfully",
         "reload_ms": elapsed_ms,
         "reload_time_ms": elapsed_ms,
         "terms_count": terms_count,
         "total_terms": terms_count,
-        "counts": reload_res.get("counts", {}),
+        "counts": meta.get("counts", {}),
+        "quota": quota,
+        "details": res,
+    })
+
+
+@app.post("/api/glossary/session/clear")
+async def post_glossary_session_clear():
+    """Clear temporary session words with 0 disk writes and sync active channels."""
+    cleared_count = glossary_mgr.clear_session()
+    for ch in active_channels:
+        try:
+            ch.sync_hotwords()
+        except Exception:
+            pass
+    return JSONResponse(content={
+        "status": "ok",
+        "cleared_count": cleared_count,
+        "message": f"Cleared {cleared_count} session terms with 0 disk writes",
+        "quota": glossary_mgr.get_quota_status(),
+    })
+
+
+@app.post("/api/glossary/session/promote")
+async def post_glossary_session_promote():
+    """Promote temporary session words into permanent dictionary, write to disk, and sync."""
+    promoted_count = glossary_mgr.promote_session()
+    for ch in active_channels:
+        try:
+            ch.sync_hotwords()
+        except Exception:
+            pass
+    return JSONResponse(content={
+        "status": "ok",
+        "promoted_count": promoted_count,
+        "message": f"Promoted {promoted_count} session terms to permanent dictionary",
+        "quota": glossary_mgr.get_quota_status(),
+    })
+
+
+@app.post("/api/glossary/toggle_pack")
+async def post_glossary_toggle_pack(request: Request):
+    """Toggle a category pack's enabled state and sync hotwords."""
+    payload = {}
+    try:
+        raw_body = await request.body()
+        if raw_body:
+            payload = json.loads(raw_body.decode("utf-8"))
+    except Exception:
+        pass
+    if not isinstance(payload, dict):
+        payload = {}
+
+    pack_id = str(payload.get("pack_id", ""))
+    enabled = bool(payload.get("enabled", True))
+
+    success = glossary_mgr.toggle_pack(pack_id, enabled)
+    if success:
+        for ch in active_channels:
+            try:
+                ch.sync_hotwords()
+            except Exception:
+                pass
+
+    return JSONResponse(content={
+        "status": "ok" if success else "error",
+        "pack_id": pack_id,
+        "enabled": enabled if success else (not enabled),
+        "message": "Pack toggled successfully" if success else "Cannot toggle pack (locked or invalid)",
+        "quota": glossary_mgr.get_quota_status(),
+    })
+
+
+@app.post("/api/glossary/delete")
+async def post_glossary_delete(request: Request):
+    """Delete a specific term from session or permanent storage."""
+    payload = {}
+    try:
+        raw_body = await request.body()
+        if raw_body:
+            payload = json.loads(raw_body.decode("utf-8"))
+    except Exception:
+        pass
+    if not isinstance(payload, dict):
+        payload = {}
+
+    key = str(payload.get("key", payload.get("source", "")))
+    cat = str(payload.get("category", "terms_zh_to_en"))
+    is_session = payload.get("is_session")
+    if is_session is not None:
+        is_session = bool(is_session)
+
+    success = glossary_mgr.delete_term(key, category=cat, is_session=is_session)
+    if success:
+        for ch in active_channels:
+            try:
+                ch.sync_hotwords()
+            except Exception:
+                pass
+
+    return JSONResponse(content={
+        "status": "ok" if success else "error",
+        "deleted": key,
+        "quota": glossary_mgr.get_quota_status(),
     })
 
 
 @app.get("/api/glossary/hotwords")
 def get_glossary_hotwords(channel: str = "zh"):
-    """Get active domain hotwords list."""
+    """Get active domain hotwords list capped at safe threshold (<= 900 terms)."""
     hotwords = glossary_mgr.get_hotwords(channel=channel)
+    quota = glossary_mgr.get_quota_status()
     return JSONResponse(content={
         "status": "ok",
         "channel": channel,
         "count": len(hotwords),
         "hotwords": hotwords,
+        "quota": quota,
     })
+
+
+@app.get("/api/glossary/terms/active")
+def get_active_glossary_terms(
+    category: str = "terms_zh_to_en",
+    scope: str = "all",
+    q: Optional[str] = None,
+    search: Optional[str] = None,
+    deduplicate: bool = False,
+):
+    """Retrieve active terminology records across P0, P1, P2, and P3."""
+    search_query = q if q is not None else search
+    terms = glossary_mgr.get_active_terms(
+        category=category,
+        scope=scope,
+        search=search_query,
+        deduplicate=deduplicate,
+    )
+    return JSONResponse(content={
+        "status": "ok",
+        "category": category,
+        "scope": scope,
+        "count": len(terms),
+        "total_active_terms": len(terms),
+        "terms": terms,
+        "quota": glossary_mgr.get_quota_status(),
+    })
+
+
+@app.post("/api/glossary/check_conflict")
+async def post_glossary_check_conflict(request: Request):
+    """Check conflict status for proposed term mapping against all active terms."""
+    payload = {}
+    try:
+        raw = await request.body()
+        if raw:
+            payload = json.loads(raw.decode("utf-8"))
+    except Exception:
+        pass
+    if not isinstance(payload, dict):
+        payload = {}
+
+    chinese = str(payload.get("chinese", payload.get("source", "")))
+    target = str(payload.get("target", ""))
+    cat = str(payload.get("category", "terms_zh_to_en"))
+    is_session = bool(payload.get("is_session", True))
+    proposed_priority = str(payload.get("proposed_priority", "P0" if is_session else "P1"))
+
+    result = glossary_mgr.check_conflict(
+        chinese=chinese,
+        target=target,
+        category=cat,
+        proposed_priority=proposed_priority,
+    )
+    return JSONResponse(content=result)
 
 
 # ---------------------------------------------------------------------------

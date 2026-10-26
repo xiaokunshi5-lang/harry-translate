@@ -210,6 +210,306 @@ class TestTier1FeatureCoverage(unittest.TestCase):
         self.assertIn("标准校正词", event_payload["source"])
         self.assertIn("Superconducting Qubit", event_payload["target"])
 
+    def test_ac_g05_modular_glossary_bank_and_auto_discovery(self):
+        """AC-G05: Modular category packs in glossary_bank/ (>=15 packs, >=10,000 terms), 00_base_emergency locked, and auto-discovery."""
+        bank_dir = os.path.join(PROJECT_ROOT, "glossary_bank")
+        self.assertTrue(os.path.isdir(bank_dir), "glossary_bank directory must exist")
+
+        # 1. Verify 15 modular category packs exist
+        pack_files = [f for f in sorted(os.listdir(bank_dir)) if f.endswith(".json")]
+        self.assertGreaterEqual(len(pack_files), 15, f"Expected at least 15 category packs, found {len(pack_files)}")
+
+        # 2. Verify total terms >= 10,000
+        quota = self.mgr.get_quota_status()
+        self.assertGreaterEqual(quota.get("local_automaton_terms", 0), 10000, "Bank terms must be >= 10,000")
+
+        # 3. Verify 00_base_emergency is locked with highest priority
+        base_path = os.path.join(bank_dir, "00_base_emergency.json")
+        self.assertTrue(os.path.exists(base_path), "00_base_emergency.json must exist")
+        with open(base_path, "r", encoding="utf-8") as f:
+            base_pack = json.load(f)
+        self.assertTrue(base_pack.get("locked"), "00_base_emergency.json must be locked: True")
+        self.assertEqual(base_pack.get("priority"), 1, "00_base_emergency.json must have priority 1")
+
+        # Verify locked pack cannot be disabled
+        toggled = self.mgr.toggle_pack("00_base_emergency", False)
+        self.assertFalse(toggled, "Locked pack 00_base_emergency must NOT be toggleable/disableable")
+
+        # 4. Verify auto-discovery of newly dropped JSON pack
+        temp_pack_id = "99_custom_auto_discover_test"
+        temp_pack_path = os.path.join(bank_dir, f"{temp_pack_id}.json")
+        try:
+            temp_pack_data = {
+                "name": "Auto Discovery Test Pack",
+                "tier": "common",
+                "priority": 2,
+                "locked": False,
+                "terms_zh_to_en": {
+                    "自动发现测试词": "Auto Discovery Test Term"
+                }
+            }
+            with open(temp_pack_path, "w", encoding="utf-8") as f:
+                json.dump(temp_pack_data, f, ensure_ascii=False, indent=2)
+
+            # Rescan bank
+            discovered_count = self.mgr.scan_and_load_bank()
+            self.assertGreaterEqual(discovered_count, 16)
+            quota_after = self.mgr.get_quota_status()
+            pack_names = [p["id"] for p in quota_after.get("packs", [])]
+            self.assertIn(temp_pack_id, pack_names, "Newly added pack must be auto-discovered")
+
+            # Verify term translation from auto-discovered pack
+            translated = self.mgr.apply_mt_terms("这是一个自动发现测试词的样例", "zh", "en")
+            self.assertIn("Auto Discovery Test Term", translated)
+        finally:
+            if os.path.exists(temp_pack_path):
+                os.remove(temp_pack_path)
+            self.mgr.scan_and_load_bank()
+
+    def test_ac_g06_dual_track_quota_smart_capping_and_ac_performance(self):
+        """AC-G06: Dual-track quota watermark (cloud safe threshold <=900 vs Bailian 1000 limit, P0>P1>P2>P3 prioritization, local AC <=0.15ms match time on 10k+ terms, 0 extra tokens)."""
+        # 1. Quota status watermark inspection
+        quota = self.mgr.get_quota_status()
+        self.assertEqual(quota.get("cloud_quota_limit"), 1000)
+        self.assertLessEqual(quota.get("safe_threshold"), 900)
+
+        # 2. Test smart capping: hotwords list never exceeds safe_threshold (<= 900)
+        hotwords = self.mgr.get_hotwords(channel="zh")
+        self.assertLessEqual(len(hotwords), 900, f"Cloud hotwords count {len(hotwords)} exceeds safe threshold 900")
+        self.assertLess(len(hotwords), 1000, "Cloud hotwords count must strictly respect Bailian 1000 hard limit")
+
+        # 3. Verify priority truncation: P0 session hotwords take precedence over lower tiers
+        try:
+            self.mgr.add_term("特邀嘉宾阿尔特曼", "Guest Altman", category="terms_zh_to_en", is_session=True)
+            session_hotwords = self.mgr.get_hotwords(channel="zh")
+            self.assertIn("特邀嘉宾阿尔特曼", session_hotwords, "P0 session hotwords must be prioritized")
+            idx = session_hotwords.index("特邀嘉宾阿尔特曼")
+            self.assertLess(idx, 10, "P0 session hotword must appear at highest priority position")
+        finally:
+            self.mgr.clear_session()
+
+        # 4. Local AC Automaton mounts 10,000+ terms with per-sentence match time <= 0.15ms
+        local_terms = quota.get("local_automaton_terms", 0)
+        self.assertGreaterEqual(local_terms, 10000, f"Local automaton mounted terms {local_terms} must be >= 10,000")
+
+        test_sentences = [
+            "总书记在高质量发展座谈会上强调了关于新质生产力与现代化产业体系建设的重要指示。",
+            "在今天的人工智能高层论坛上，注意力机制与扩散模型以及大语言模型成为全场焦点。",
+            "关于心肌梗死与冠状动脉介入手术的临床指南今日正式发布，涉及靶向治疗最新进展。",
+            "在跨国供应链中，关于半导体光刻机与高纯度多晶硅的贸易协定已进入签署阶段。"
+        ]
+
+        # Warmup
+        for s in test_sentences:
+            self.mgr.apply_mt_terms(s, "zh", "en")
+            self.mgr.apply_asr_fixes(s)
+
+        # Benchmark 200 iterations across multi-domain real sentences
+        t0 = time.perf_counter()
+        iterations = 200
+        for _ in range(iterations):
+            for s in test_sentences:
+                self.mgr.apply_mt_terms(s, "zh", "en")
+        elapsed_total = time.perf_counter() - t0
+        avg_ms_per_sentence = (elapsed_total / (iterations * len(test_sentences))) * 1000.0
+
+        self.assertLessEqual(avg_ms_per_sentence, 0.15, f"Local AC match time {avg_ms_per_sentence:.4f}ms exceeds 0.15ms SLA")
+
+    def test_ac_g07_two_tier_lifecycle_and_session_guest_names(self):
+        """AC-G07: Temporary guest names multi-delimiter parsing, two-tier lifecycle, clear_session 0 disk writes, promote_session persistence, REST endpoints."""
+        dict_path = os.path.join(PROJECT_ROOT, "glossary.json")
+        mtime_initial = os.path.getmtime(dict_path)
+
+        # 1. Multi-delimiter parsing (=, ->, =>, :, ：) in import_batch_text with is_session=True
+        raw_guest_text = (
+            "萨姆·奥尔特曼 = Sam Altman\n"
+            "埃隆·马斯克 -> Elon Musk\n"
+            "黄仁勋 => Jensen Huang\n"
+            "蒂姆·库克 : Tim Cook\n"
+            "萨蒂亚·纳德拉 ： Satya Nadella"
+        )
+        res_import = self.mgr.import_batch_text(raw_guest_text, default_category="terms_zh_to_en", is_session=True)
+        self.assertEqual(res_import.get("imported_count"), 5, f"Expected 5 parsed terms, got {res_import}")
+
+        # Verify in-memory translation effect
+        test_in = "今日特邀嘉宾萨姆·奥尔特曼与黄仁勋出席开幕式"
+        res_mt = self.mgr.apply_mt_terms(test_in, "zh", "en")
+        self.assertIn("Sam Altman", res_mt)
+        self.assertIn("Jensen Huang", res_mt)
+
+        # Verify 0 disk writes during session modification
+        mtime_after_import = os.path.getmtime(dict_path)
+        self.assertEqual(mtime_initial, mtime_after_import, "Session terms import must NOT write to disk")
+
+        # Verify clear_session() clears session terms with 0 disk writes
+        cleared = self.mgr.clear_session()
+        self.assertEqual(cleared, 5)
+        mtime_after_clear = os.path.getmtime(dict_path)
+        self.assertEqual(mtime_initial, mtime_after_clear, "clear_session() must have 0 disk writes")
+        res_mt_cleared = self.mgr.apply_mt_terms(test_in, "zh", "en")
+        self.assertNotIn("Sam Altman", res_mt_cleared)
+
+        # 2. Verify REST endpoints via TestClient
+        # 2a. Add session term via POST /api/glossary
+        session_payload = {
+            "is_session": True,
+            "batch_text": "苏姿丰 = Lisa Su",
+            "category": "terms_zh_to_en"
+        }
+        resp = self.client.post("/api/glossary", json_data=session_payload)
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json().get("details", {}).get("is_session", False))
+
+        res_lisa = self.mgr.apply_mt_terms("AMD CEO 苏姿丰发表主题演讲", "zh", "en")
+        self.assertIn("Lisa Su", res_lisa)
+
+        # 2b. Promote session terms to permanent storage via POST /api/glossary/session/promote
+        resp_promote = self.client.post("/api/glossary/session/promote")
+        self.assertEqual(resp_promote.status_code, 200)
+        promoted_data = resp_promote.json()
+        self.assertGreaterEqual(promoted_data.get("promoted_count", 0), 1)
+
+        # Verify term is now permanent
+        with open(dict_path, "r", encoding="utf-8") as f:
+            disk_data = json.load(f)
+        self.assertIn("苏姿丰", disk_data.get("terms_zh_to_en", {}))
+        self.assertEqual(disk_data["terms_zh_to_en"]["苏姿丰"], "Lisa Su")
+
+        # 2c. Clear session endpoint POST /api/glossary/session/clear
+        self.mgr.add_term("temporary_guest", "Temp Val", category="terms_zh_to_en", is_session=True)
+        resp_clear = self.client.post("/api/glossary/session/clear")
+        self.assertEqual(resp_clear.status_code, 200)
+        self.assertEqual(resp_clear.json().get("status"), "ok")
+
+        # 2d. Clean up promoted test term from disk_data and reload
+        del disk_data["terms_zh_to_en"]["苏姿丰"]
+        self.mgr.reload(new_data=disk_data, persist=True)
+
+    def test_ac_g08_configuration_drawer_workbench_elements(self):
+        """AC-G08: Configuration drawer visualization workbench elements, segmented tabs, quota progress bar, category tags, batch add, lifecycle actions, and zero innerText."""
+        from html.parser import HTMLParser
+
+        class IDCollector(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.ids = set()
+            def handle_starttag(self, tag, attrs):
+                for k, v in attrs:
+                    if k.lower() == "id" and v:
+                        self.ids.add(v)
+
+        index_path = os.path.join(PROJECT_ROOT, "index.html")
+        self.assertTrue(os.path.exists(index_path), "index.html must exist")
+        with open(index_path, "r", encoding="utf-8") as f:
+            html = f.read()
+
+        collector = IDCollector()
+        collector.feed(html)
+        found_ids = collector.ids
+
+        # 1. Top Header Entry Point
+        self.assertIn("btn-open-glossary", found_ids, "Missing #btn-open-glossary in index.html")
+        self.assertIn("btn-open-drawer", found_ids, "Missing #btn-open-drawer in index.html")
+        self.assertIn('onclick="openConfigDrawer(\'glossary\')"', html, "Missing onclick openConfigDrawer('glossary') on btn-open-glossary")
+        self.assertIn("📚 会议热词", html, "Missing text '📚 会议热词' on btn-open-glossary")
+
+        # 2. Segmented Tabs & Expanded Drawer Width (520px, max-width 94vw)
+        self.assertIn("width: 520px", html, "Drawer width must be expanded to 520px")
+        self.assertIn("max-width: 94vw", html, "Drawer max-width must be 94vw")
+        expected_tab_ids = [
+            "tab-btn-glossary",
+            "tab-btn-system",
+            "chip-cloud-load",
+            "panel-glossary",
+            "panel-system",
+        ]
+        for tid in expected_tab_ids:
+            self.assertIn(tid, found_ids, f"Missing tab ID: {tid}")
+
+        # 3. Preserved 15 System Configuration IDs and Substrings
+        mandated_system_ids = [
+            "config-drawer", "drawer-backdrop", "drawer-close-btn",
+            "drawer-masked-key", "drawer-api-key", "btn-toggle-key",
+            "drawer-device-a", "drawer-device-b", "drawer-loopback-badge",
+            "drawer-engine", "drawer-btn-unlock-hud", "drawer-btn-stealth-hud",
+            "drawer-save-btn", "btn-open-drawer", "toast-notification"
+        ]
+        for sid in mandated_system_ids:
+            self.assertIn(sid, found_ids, f"Missing mandated system ID: {sid}")
+        self.assertIn("留空保持当前 Key 不变", html)
+        self.assertIn("绝不盗用麦克风", html)
+        self.assertIn("gummy-realtime-v1", html)
+        self.assertIn("qwen3.8-livetranslate-flash-realtime", html)
+
+        # 4. Block 1: Quota Watermark Progress Bar
+        quota_ids = [
+            "quota-cloud-count",
+            "quota-health-badge",
+            "quota-bar-fill",
+            "quota-local-count",
+            "quota-capped-alert",
+        ]
+        for qid in quota_ids:
+            self.assertIn(qid, found_ids, f"Missing quota ID: {qid}")
+        self.assertIn("☁️ 云端 API 热词负荷：", html)
+        self.assertIn("1,000 词 (上限)", html)
+        self.assertIn("900 词安全线", html)
+        self.assertIn("🖥️ 本地万词引擎已挂载：", html)
+
+        # 5. Block 2: Category Tags Checkbox Area
+        self.assertIn("tags-grid-high", found_ids, "Missing #tags-grid-high")
+        self.assertIn("tags-grid-rare", found_ids, "Missing #tags-grid-rare")
+        self.assertIn("🟢 主力分类标签 (高频 / 常见)", html)
+        self.assertIn("🔵 领域扩展标签 (生僻 / 不常见 · 可达万级)", html)
+
+        # 6. Block 3: Single & Batch Quick-Add Inputs
+        entry_ids = [
+            "btn-mode-single", "btn-mode-batch",
+            "entry-panel-single", "entry-panel-batch",
+            "term-direction", "term-scope", "term-source", "term-target", "btn-add-term",
+            "batch-direction", "batch-scope", "batch-import-text", "batch-parsed-count", "btn-batch-import"
+        ]
+        for eid in entry_ids:
+            self.assertIn(eid, found_ids, f"Missing quick-add entry ID: {eid}")
+
+        # 7. Block 4: Interactive List & Lifecycle Actions
+        list_ids = [
+            "filter-scope-all", "filter-scope-session", "filter-scope-permanent",
+            "count-scope-all", "count-scope-session", "count-scope-permanent",
+            "terms-search-input", "terms-list-container",
+            "btn-clear-session", "btn-promote-session", "btn-delete-term"
+        ]
+        for lid in list_ids:
+            self.assertIn(lid, found_ids, f"Missing interactive list ID: {lid}")
+        self.assertIn("🧹 一键清空本场临时词", html)
+        self.assertIn("💾 一键转存为永久词库", html)
+
+        # 8. Strict DOM Redline: 0 occurrences of innerText
+        matches = re.findall(r"\binnerText\b", html)
+        self.assertEqual(len(matches), 0, f"Forbidden 'innerText' found {len(matches)} times in index.html; must use textContent exclusively.")
+        self.assertIn("textContent", html, "index.html must use textContent")
+
+        # 9. Core JS Functions Verification
+        required_js_funcs = [
+            "switchDrawerTab",
+            "openConfigDrawer",
+            "loadGlossaryData",
+            "updateQuotaDisplay",
+            "renderCategoryTags",
+            "toggleCategoryPack",
+            "switchEntryMode",
+            "submitSingleTerm",
+            "onBatchTextChange",
+            "submitBatchTerms",
+            "setScopeFilter",
+            "renderTermsList",
+            "deleteTerm",
+            "clearSessionTerms",
+            "promoteSessionTerms",
+        ]
+        for fn in required_js_funcs:
+            self.assertIn(f"function {fn}", html, f"Missing JS function: {fn}")
+
     def test_ac_l1_golden_ratio_height_proportions(self):
         """AC-L1: Height of #zonePrimary is 68% ± 1% and #zoneAuxiliary is 32% ± 1%."""
         self.assertIn("flex: 0 0 68%", self.html)

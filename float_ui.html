@@ -164,6 +164,23 @@
             transform: scale(0.97);
         }
 
+        /* 锁定状态下禁用把手拖动并重置光标为 default */
+        #hud-container.position-locked .pywebview-drag-region,
+        #hud-container.position-locked .drag-handle,
+        #hud-container.position-locked .drag-anchor-corner,
+        #hud-container.position-locked #drag-anchor-corner,
+        .drag-anchor-corner.locked,
+        #drag-anchor-corner.locked {
+            -webkit-app-region: no-drag !important;
+            cursor: default !important;
+        }
+
+        .hud-btn.locked {
+            background: rgba(239, 68, 68, 0.28) !important;
+            border-color: rgba(239, 68, 68, 0.5) !important;
+            color: #fca5a5 !important;
+        }
+
         .anchor-dots {
             font-size: 13px;
             opacity: 0.85;
@@ -621,7 +638,7 @@
             <div class="hud-controls" style="-webkit-app-region: no-drag;">
                 <span class="hud-channel-pill channel-en" id="hud-channel-pill" title="点击切换语言通道 (中译英 ⇄ 英译中，快捷键 Cmd+Shift+T)">中 ➔ EN ⇄</span>
                 <span class="hud-channel-pill hud-theme-pill" id="hud-theme-pill" title="点击切换字体配色方案 (快捷键 Cmd+Shift+C / Ctrl+Shift+C)">🎨 暖金</span>
-                <button class="no-drag hud-btn" id="btn-lock" title="锁定鼠标穿透 (快捷键 Cmd+Shift+L / Ctrl+Shift+L)">🔒</button>
+                <button class="no-drag hud-btn" id="btn-lock" title="点击锁定窗口位置 (快捷键 Cmd+Shift+L / Ctrl+Shift+L)">🔓</button>
                 <button class="no-drag hud-btn" id="btn-opacity" title="切换背景透明度 (15% / 35% / 55% / 75% / 10%)">💧 15%</button>
                 <button class="no-drag hud-btn" id="btn-config" title="在系统浏览器打开主控台配置抽屉 (⚙️)">⚙️</button>
             </div>
@@ -750,6 +767,9 @@
             const apiBase = (location.protocol === 'http:' || location.protocol === 'https:')
                 ? ''
                 : `http://${wsHost}:${wsPort}`;
+
+            const initChannel = urlParams.get('channel') || urlParams.get('lang') || '';
+            const initWindowId = (initChannel === 'en' || initChannel === 'zh') ? initChannel : (urlParams.get('window_id') || '');
 
             let currentChannel = urlParams.get('channel') || urlParams.get('lang') || safeGetStorage('qwen_hud_channel', 'en');
             if (currentChannel !== 'en' && currentChannel !== 'zh') {
@@ -1184,10 +1204,14 @@
                 ws.onmessage = (event) => {
                     try {
                         const data = JSON.parse(event.data);
-                        // 支持远程解锁指令
+                        // 支持远程解锁指令 (支持按窗口过滤与全局广播)
                         if (data.type === 'hud_lock' || data.type === 'lock_state' || data.type === 'lock_status') {
+                            const targetWin = data.window_id || data.channel;
+                            if (targetWin && initWindowId && targetWin !== initWindowId) {
+                                return;
+                            }
                             if (typeof data.locked === 'boolean') {
-                                toggleLock(data.locked);
+                                toggleLock(data.locked, true);
                             }
                             return;
                         }
@@ -1254,8 +1278,8 @@
                 });
             }
 
-            // 10. 点击穿透锁控制 (Dual-Mode Click-Through Lock & Remote Unlock)
-            async function toggleLock(forceState) {
+            // 10. 窗口位置锁定控制 (Decoupled Position Lock & Remote Unlock)
+            async function toggleLock(forceState, fromRemote = false) {
                 if (typeof forceState === 'boolean') {
                     isLocked = forceState;
                 } else {
@@ -1264,32 +1288,83 @@
 
                 if (isLocked) {
                     btnLock.classList.add('locked');
-                    btnLock.title = '已锁定鼠标穿透 (快捷键 Cmd+Shift+L / Ctrl+Shift+L 解锁)';
+                    btnLock.textContent = '🔒';
+                    btnLock.title = '窗口位置已锁定（固定不动，再次点击即可解除）';
+                    if (dragAnchorCorner) {
+                        dragAnchorCorner.classList.remove('pywebview-drag-region', 'drag-handle');
+                        dragAnchorCorner.classList.add('locked');
+                        dragAnchorCorner.style.setProperty('-webkit-app-region', 'no-drag', 'important');
+                        dragAnchorCorner.style.setProperty('cursor', 'default', 'important');
+                        dragAnchorCorner.title = '窗口位置已锁定（固定不动，再次点击即可解除）';
+                    }
+                    if (hudContainer) {
+                        hudContainer.classList.add('position-locked');
+                    }
+                    document.querySelectorAll('.pywebview-drag-region, .drag-handle').forEach(el => {
+                        el.style.setProperty('-webkit-app-region', 'no-drag', 'important');
+                        el.style.setProperty('cursor', 'default', 'important');
+                    });
                 } else {
                     btnLock.classList.remove('locked');
-                    btnLock.title = '点击锁定鼠标穿透 (快捷键 Cmd+Shift+L / Ctrl+Shift+L)';
-                }
-
-                // 优先调用 pywebview 原生 API
-                if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.toggle_lock === 'function') {
-                    try {
-                        window.pywebview.api.toggle_lock(isLocked);
-                    } catch(e) {
-                        console.warn('[HUD] pywebview toggle_lock 异常:', e);
+                    btnLock.textContent = '🔓';
+                    btnLock.title = '点击锁定窗口位置 (快捷键 Cmd+Shift+L / Ctrl+Shift+L)';
+                    if (dragAnchorCorner) {
+                        dragAnchorCorner.classList.add('pywebview-drag-region', 'drag-handle');
+                        dragAnchorCorner.classList.remove('locked');
+                        dragAnchorCorner.style.setProperty('-webkit-app-region', 'drag');
+                        dragAnchorCorner.style.setProperty('cursor', 'grab');
+                        dragAnchorCorner.title = '按住左上角把手可拖拽移动窗口至任意屏幕';
                     }
+                    if (hudContainer) {
+                        hudContainer.classList.remove('position-locked');
+                    }
+                    document.querySelectorAll('.pywebview-drag-region, .drag-handle').forEach(el => {
+                        el.style.setProperty('-webkit-app-region', 'drag');
+                        el.style.setProperty('cursor', 'grab');
+                    });
                 }
 
-                // 同步调用后端 HTTP 端点 (支持多层解锁与远程控台联动)
-                try {
-                    await fetch(`${apiBase}/api/hud/lock`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ locked: isLocked })
-                    });
-                } catch(e) {}
+                if (!fromRemote) {
+                    // 优先调用 pywebview 原生 API
+                    if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.toggle_lock === 'function') {
+                        try {
+                            window.pywebview.api.toggle_lock(isLocked, initWindowId || undefined);
+                        } catch(e) {
+                            console.warn('[HUD] pywebview toggle_lock 异常:', e);
+                        }
+                    }
+
+                    // 同步调用后端 HTTP 端点 (支持分窗隔离与远程控台联动)
+                    try {
+                        const payload = { locked: isLocked, source: 'hud' };
+                        if (initWindowId) {
+                            payload.window_id = initWindowId;
+                        }
+                        await fetch(`${apiBase}/api/hud/lock`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                    } catch(e) {}
+                }
             }
 
+            // Expose globally for pywebview remote unlock and tests
+            window.setLockState = toggleLock;
+            window.toggleLock = toggleLock;
+
             btnLock.addEventListener('click', () => toggleLock());
+
+            // 在 window 捕获阶段拦截事件，从源头掐死 customize.js 的 onBodyMouseDown
+            window.addEventListener('mousedown', function(e) {
+                if (!isLocked) return;
+                const targetEl = (e.target && e.target.nodeType === 1) ? e.target : (e.target ? e.target.parentElement : null);
+                const isControl = targetEl && typeof targetEl.closest === 'function' ? targetEl.closest('#btn-lock, #hud-channel-pill, #hud-theme-pill, #btn-opacity, #btn-config, button, select, input, .no-drag') : null;
+                if (!isControl) {
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                }
+            }, true);
 
             // 监听键盘全局快捷键 (Cmd+Shift+L / Ctrl+Shift+L 解锁，Cmd+Shift+T / Ctrl+Shift+T 切换语种，Cmd+Shift+C / Ctrl+Shift+C 切换配色，Cmd+Shift+R / Ctrl+Shift+R 切换比率)
             window.addEventListener('keydown', (e) => {
@@ -1504,12 +1579,16 @@
                 getRatio: () => currentRatio,
                 setRatio: applyRatio,
                 applyRatio: applyRatio,
-                toggleRatio: toggleRatio
+                toggleRatio: toggleRatio,
+                setLockState: toggleLock
             };
             window.scheduleSubtitleUpdate = scheduleSubtitleUpdate;
+            window.renderSubtitleFrame = renderSubtitleFrame;
             window.resetInactivity = resetInactivity;
             window.applyRatio = applyRatio;
             window.toggleRatio = toggleRatio;
+            window.setLockState = toggleLock;
+            window.toggleLock = toggleLock;
         })();
     </script>
 </body>

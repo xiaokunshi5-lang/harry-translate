@@ -149,6 +149,7 @@ def test_3_config_empty_key_protection_and_partial_update():
 
     # Establish known baseline key
     original_key = server.DASHSCOPE_API_KEY
+    had_env = os.path.exists(server.ENV_FILE)
     if not original_key:
         original_key = "test-placeholder-key"
         server.DASHSCOPE_API_KEY = original_key

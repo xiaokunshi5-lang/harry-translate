@@ -47,7 +47,10 @@ class FastAPITestClient:
         query_params: Optional[Dict[str, Any]] = None,
         json_data: Optional[Any] = None,
         body_bytes: Optional[bytes] = None,
+        **kwargs
     ) -> ASGIResponse:
+        if "json" in kwargs and kwargs["json"] is not None:
+            json_data = kwargs["json"]
         method = method.upper()
         norm_headers = []
         if headers:
@@ -67,6 +70,10 @@ class FastAPITestClient:
         if query_params:
             from urllib.parse import urlencode
             query_string = urlencode(query_params).encode("utf-8")
+        elif "?" in path:
+            path_part, qs = path.split("?", 1)
+            path = path_part
+            query_string = qs.encode("utf-8")
 
         scope = {
             "type": "http",

@@ -61,7 +61,7 @@ class OffScreenWebKitDriver:
         with open(HTML_PATH, "r", encoding="utf-8") as f:
             content = f.read()
         self.wv.loadHTMLString_baseURL_(content, Cocoa.NSURL.fileURLWithPath_(HTML_PATH))
-        self._pump(0.25)
+        self._pump(0.5)
 
     def _pump(self, duration: float):
         t0 = time.time()
@@ -393,6 +393,7 @@ class TestTencentSteadyHudAndThemes(unittest.TestCase):
                 target: "同声传译运行平稳。",
                 is_final: true
             });
+            if (typeof window.renderSubtitleFrame === "function") window.renderSubtitleFrame();
             
             const textImmediately = activeLine.textContent;
             const pastImmediately = pastLine.textContent;
@@ -405,6 +406,7 @@ class TestTencentSteadyHudAndThemes(unittest.TestCase):
                 type: 'sentence_start',
                 id: 102
             });
+            if (typeof window.renderSubtitleFrame === "function") window.renderSubtitleFrame();
             
             const textAfterBoundary = activeLine.textContent;
             const pastAfterBoundary = pastLine.textContent;

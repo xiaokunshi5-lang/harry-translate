@@ -74,5 +74,22 @@
     "Python编程语言": "Python编程语言",
     "DashScope": "阿里云百炼",
     "Qwen": "通义千问"
-  }
+  },
+  "_enabled_packs": [
+    "00_base_emergency",
+    "01_party_gov_high",
+    "02_diplomacy_official_high",
+    "03_daily_items_common",
+    "04_fruits_fresh_common",
+    "05_key_locations_common",
+    "06_classic_idioms_high",
+    "07_ai_tech_high",
+    "08_spoken_slang_common",
+    "09_party_specialized_rare",
+    "10_industry_items_uncommon",
+    "11_fruits_agricultural_rare",
+    "12_world_locations_ext",
+    "13_dialect_homophones_rare",
+    "14_biomedical_clinical_expert"
+  ]
 }

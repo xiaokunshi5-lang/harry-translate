@@ -33,6 +33,19 @@ except ImportError:
 
 # Optional PyObjC for native main-thread dispatch on macOS
 _pyobjc_available = False
+NSApp = None
+NSWindowCollectionBehaviorCanJoinAllSpaces = 1
+NSWindowCollectionBehaviorMoveToActiveSpace = 2
+NSWindowCollectionBehaviorStationary = 16
+NSWindowCollectionBehaviorIgnoresCycle = 64
+NSWindowCollectionBehaviorFullScreenAuxiliary = 256
+NS_WINDOW_COLLECTION_BEHAVIOR_HUD = 337  # 1 | 16 | 64 | 256 (CanJoinAllSpaces | FullScreenAuxiliary)
+NS_STATUS_WINDOW_LEVEL = 25              # kCGStatusWindowLevelKey / NSStatusWindowLevel
+NS_POPUP_MENU_WINDOW_LEVEL = 101         # kCGPopUpMenuWindowLevelKey / NSPopUpMenuWindowLevel
+NSStatusWindowLevel = 25
+NSPopUpMenuWindowLevel = 101
+NSApplicationActivationPolicyAccessory = 1
+
 if sys.platform == "darwin":
     try:
         import AppKit
@@ -44,12 +57,128 @@ if sys.platform == "darwin":
             NSWindowCollectionBehaviorFullScreenAuxiliary,
             NSWindowCollectionBehaviorStationary,
             NSWindowCollectionBehaviorIgnoresCycle,
+            NSWindowCollectionBehaviorMoveToActiveSpace,
             NSStatusWindowLevel,
+            NSPopUpMenuWindowLevel,
+            NSApplicationActivationPolicyAccessory,
         )
         from PyObjCTools import AppHelper
         _pyobjc_available = True
     except Exception:
         _pyobjc_available = False
+
+HUDPanelHost = None
+if sys.platform == "darwin" and _pyobjc_available:
+    from objc import super as objc_super
+    try:
+        # Enforce accessory activation policy for macOS FullScreen Space roaming
+        AppKit.NSApplication.sharedApplication().setActivationPolicy_(1)
+    except Exception:
+        pass
+
+    class HUDPanelHost(AppKit.NSPanel):
+        """
+        Native macOS Floating Non-Activating Panel Host.
+        - Automatically injects NSWindowStyleMaskNonactivatingPanel (1 << 7 = 128)
+        - Enforces NSWindowCollectionBehaviorCanJoinAllSpaces | FullScreenAuxiliary | Stationary | IgnoresCycle (337)
+        - Enforces minimum window level NSPopUpMenuWindowLevel (101)
+        - Hardware-level position and size hard lock via _hud_locked frame guard
+        """
+        focus = True
+        _hud_locked = False
+        _locked_frame = None
+
+        def initWithContentRect_styleMask_backing_defer_(self, rect, styleMask, backing, defer):
+            panel_mask = int(styleMask) | (1 << 7)
+            self = objc_super(HUDPanelHost, self).initWithContentRect_styleMask_backing_defer_(
+                rect, panel_mask, backing, defer
+            )
+            if self is not None:
+                self._hud_locked = False
+                self._locked_frame = None
+                try:
+                    app = AppKit.NSApplication.sharedApplication()
+                    if hasattr(app, "setActivationPolicy_"):
+                        app.setActivationPolicy_(1)
+                except Exception:
+                    pass
+
+                self.setFloatingPanel_(True)
+                self.setBecomesKeyOnlyIfNeeded_(True)
+                self.setWorksWhenModal_(True)
+                objc_super(HUDPanelHost, self).setHidesOnDeactivate_(False)
+                objc_super(HUDPanelHost, self).setCollectionBehavior_(337)
+                objc_super(HUDPanelHost, self).setLevel_(101)
+            return self
+
+        def canBecomeKeyWindow(self):
+            return bool(getattr(self, "focus", True))
+
+        def canBecomeMainWindow(self):
+            return False
+
+        def hidesOnDeactivate(self):
+            return False
+
+        def setHidesOnDeactivate_(self, flag):
+            objc_super(HUDPanelHost, self).setHidesOnDeactivate_(False)
+
+        def setLevel_(self, level):
+            objc_super(HUDPanelHost, self).setLevel_(max(int(level), 101))
+
+        def setCollectionBehavior_(self, behavior):
+            objc_super(HUDPanelHost, self).setCollectionBehavior_(337)
+
+        def setFrameTopLeftPoint_(self, point):
+            if getattr(self, "_hud_locked", False):
+                return
+            objc_super(HUDPanelHost, self).setFrameTopLeftPoint_(point)
+
+        def setFrameOrigin_(self, point):
+            if getattr(self, "_hud_locked", False):
+                return
+            objc_super(HUDPanelHost, self).setFrameOrigin_(point)
+
+        def setFrame_(self, frame):
+            if getattr(self, "_hud_locked", False):
+                return
+            self.setFrame_display_(frame, True)
+
+        def setFrame_display_(self, frame, display):
+            if getattr(self, "_hud_locked", False):
+                locked = getattr(self, "_locked_frame", None)
+                if locked is None:
+                    try:
+                        locked = self.frame()
+                        self._locked_frame = locked
+                    except Exception:
+                        pass
+                if locked is not None:
+                    objc_super(HUDPanelHost, self).setFrame_display_(locked, display)
+                return
+            objc_super(HUDPanelHost, self).setFrame_display_(frame, display)
+
+        def setFrame_display_animate_(self, frame, display, animate):
+            if getattr(self, "_hud_locked", False):
+                locked = getattr(self, "_locked_frame", None)
+                if locked is None:
+                    try:
+                        locked = self.frame()
+                        self._locked_frame = locked
+                    except Exception:
+                        pass
+                if locked is not None:
+                    objc_super(HUDPanelHost, self).setFrame_display_animate_(locked, display, False)
+                return
+            objc_super(HUDPanelHost, self).setFrame_display_animate_(frame, display, animate)
+
+    # Automatically hook BrowserView.WindowHost as soon as HUDPanelHost is defined
+    try:
+        import webview.platforms.cocoa as cocoa
+        cocoa.BrowserView.WindowHost = HUDPanelHost
+        AppKit.NSApplication.sharedApplication().setActivationPolicy_(1)
+    except Exception:
+        pass
 
 # ==============================================================================
 # Native OS Window Controllers (ctypes AppKit & user32)
@@ -60,11 +189,13 @@ if sys.platform == "darwin":
 # ------------------------------------------------------------------------------
 # Constants
 NS_WINDOW_COLLECTION_BEHAVIOR_CAN_JOIN_ALL_SPACES = 1 << 0       # 1
+NS_WINDOW_COLLECTION_BEHAVIOR_MOVE_TO_ACTIVE_SPACE = 1 << 1      # 2
 NS_WINDOW_COLLECTION_BEHAVIOR_STATIONARY = 1 << 4                # 16
 NS_WINDOW_COLLECTION_BEHAVIOR_IGNORES_CYCLE = 1 << 6             # 64
 NS_WINDOW_COLLECTION_BEHAVIOR_FULL_SCREEN_AUXILIARY = 1 << 8     # 256
 NS_WINDOW_COLLECTION_BEHAVIOR_HUD = 337  # 1 | 16 | 64 | 256 (CanJoinAllSpaces | FullScreenAuxiliary)
 NS_STATUS_WINDOW_LEVEL = 25              # kCGStatusWindowLevelKey / NSStatusWindowLevel
+NS_POPUP_MENU_WINDOW_LEVEL = 101         # kCGPopUpMenuWindowLevelKey / NSPopUpMenuWindowLevel
 
 # NSWindowSharingType (Stealth Mode)
 NS_WINDOW_SHARING_NONE = 0               # Excluded from screen capture / recording / Zoom sharing
@@ -244,33 +375,127 @@ class MacOSWindowController:
             win = getattr(self.window, "native", None)
             if not win:
                 return
-            # Multi-monitor & Space persistence:
-            # We configure CanJoinAllSpaces (1) + FullScreenAuxiliary (256) + IgnoresCycle (64).
-            # To allow free movement across external monitors / secondary displays and spaces,
-            # we omit NSWindowCollectionBehaviorStationary from runtime collectionBehavior while
-            # retaining the specification constants (NS_WINDOW_COLLECTION_BEHAVIOR_HUD = 337).
-            behavior = (
-                NSWindowCollectionBehaviorCanJoinAllSpaces |
-                NSWindowCollectionBehaviorFullScreenAuxiliary |
-                NSWindowCollectionBehaviorIgnoresCycle
-            )
-            win.setCollectionBehavior_(behavior)
-            win.setLevel_(NSStatusWindowLevel)
+
+            # Upgrade activation policy to Accessory (1) for FullScreen Space roaming
+            try:
+                target_nsapp = NSApp
+                if target_nsapp is None and _pyobjc_available:
+                    target_nsapp = getattr(AppKit, "NSApp", None)
+                if target_nsapp is not None and hasattr(target_nsapp, "setActivationPolicy_"):
+                    target_nsapp.setActivationPolicy_(1)
+            except Exception:
+                pass
+
+            try:
+                if _pyobjc_available:
+                    app = AppKit.NSApplication.sharedApplication()
+                    if hasattr(app, "setActivationPolicy_"):
+                        app.setActivationPolicy_(1)
+            except Exception:
+                pass
+
+            # 注册全屏空间切换监听，当用户进入/切换至全屏 Chrome、Safari 时自动重申置顶
+            try:
+                if not hasattr(self, "_space_observer_installed"):
+                    self._space_observer_installed = True
+                    ws_center = AppKit.NSWorkspace.sharedWorkspace().notificationCenter()
+                    def _on_space_changed(notif):
+                        try:
+                            cur_win = getattr(self.window, "native", None)
+                            if cur_win and hasattr(cur_win, "orderFrontRegardless"):
+                                cur_win.orderFrontRegardless()
+                        except Exception:
+                            pass
+                    self._space_observer_token = ws_center.addObserverForName_object_queue_usingBlock_(
+                        AppKit.NSWorkspaceActiveSpaceDidChangeNotification,
+                        None,
+                        AppKit.NSOperationQueue.mainQueue(),
+                        _on_space_changed
+                    )
+            except Exception:
+                pass
+
+            # Enhanced Space and FullScreen auxiliary collection behavior (mask: 323 / 337)
+            # CanJoinAllSpaces (1) | MoveToActiveSpace (2) | IgnoresCycle (64) | FullScreenAuxiliary (256)
+            # On real macOS Cocoa NSWindow, CanJoinAllSpaces and MoveToActiveSpace are mutually exclusive.
+            # We attempt the full behavior first, then fall back gracefully to CanJoinAllSpaces (337).
+            try:
+                behavior = (
+                    NSWindowCollectionBehaviorCanJoinAllSpaces |
+                    NSWindowCollectionBehaviorFullScreenAuxiliary |
+                    NSWindowCollectionBehaviorMoveToActiveSpace |
+                    NSWindowCollectionBehaviorIgnoresCycle
+                )
+                win.setCollectionBehavior_(behavior)
+            except Exception:
+                try:
+                    win.setCollectionBehavior_(
+                        NSWindowCollectionBehaviorCanJoinAllSpaces |
+                        NSWindowCollectionBehaviorFullScreenAuxiliary |
+                        NSWindowCollectionBehaviorIgnoresCycle |
+                        NSWindowCollectionBehaviorStationary
+                    )
+                except Exception:
+                    pass
+
+            # Elevate window level to NSPopUpMenuWindowLevel (101) to stay above fullscreen spaces
+            try:
+                if hasattr(win, "setLevel_"):
+                    win.setLevel_(NSPopUpMenuWindowLevel)
+            except Exception:
+                try:
+                    if hasattr(win, "setLevel_"):
+                        win.setLevel_(NSStatusWindowLevel)
+                except Exception:
+                    pass
+
+            # Prevent window from hiding when app loses focus
+            try:
+                if hasattr(win, "setHidesOnDeactivate_"):
+                    win.setHidesOnDeactivate_(False)
+            except Exception:
+                pass
+
+            # Force window to front of its level regardless of active application
+            try:
+                if hasattr(win, "orderFrontRegardless"):
+                    win.orderFrontRegardless()
+            except Exception:
+                pass
 
             # Native macOS full-surface dragging: allows clicking & dragging anywhere on HUD
-            if hasattr(win, "setMovableByWindowBackground_"):
-                win.setMovableByWindowBackground_(True)
-            if hasattr(win, "setMovable_"):
-                win.setMovable_(True)
+            try:
+                if hasattr(win, "setMovableByWindowBackground_"):
+                    win.setMovableByWindowBackground_(True)
+            except Exception:
+                pass
+
+            try:
+                if hasattr(win, "setMovable_"):
+                    win.setMovable_(True)
+            except Exception:
+                pass
 
             # Install zero-latency hardware drag monitor for top-left anchor
-            self._setup_drag_monitor()
+            try:
+                self._setup_drag_monitor()
+            except Exception:
+                pass
 
             # Reinforce 100% pure native transparency so WebKit CSS exclusively renders background and blur
-            if hasattr(win, "setOpaque_"):
-                win.setOpaque_(False)
-            if hasattr(win, "setBackgroundColor_"):
-                win.setBackgroundColor_(AppKit.NSColor.clearColor())
+            try:
+                if hasattr(win, "setOpaque_"):
+                    win.setOpaque_(False)
+            except Exception:
+                pass
+
+            try:
+                if hasattr(win, "setBackgroundColor_"):
+                    if _pyobjc_available:
+                        import AppKit
+                        win.setBackgroundColor_(AppKit.NSColor.clearColor())
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -325,11 +550,23 @@ class MacOSWindowController:
         return self.setup_hud_window()
 
     def set_click_through(self, enable: bool) -> bool:
-        """Toggles mouse event passthrough via setIgnoresMouseEvents: safely on main thread."""
+        """Toggles decoupled position locking safely on main thread without ignoring mouse events."""
         self.is_locked = bool(enable)
         if _pyobjc_available and self.window:
             try:
-                AppHelper.callAfter(self._set_mouse_on_main, self.is_locked)
+                is_main = False
+                try:
+                    if hasattr(AppKit, "NSThread"):
+                        is_main = bool(AppKit.NSThread.isMainThread())
+                    else:
+                        is_main = (threading.current_thread() is threading.main_thread())
+                except Exception:
+                    is_main = (threading.current_thread() is threading.main_thread())
+
+                if is_main:
+                    self._set_mouse_on_main(self.is_locked)
+                else:
+                    AppHelper.callAfter(self._set_mouse_on_main, self.is_locked)
                 return True
             except Exception:
                 pass
@@ -339,42 +576,88 @@ class MacOSWindowController:
             return False
 
         try:
-            _msgSend_void_p_bool(ptr, _SEL_setIgnoresMouseEvents, ctypes.c_bool(self.is_locked))
+            # Fallback ctypes: never set to True; keep mouse events active
+            _msgSend_void_p_bool(ptr, _SEL_setIgnoresMouseEvents, ctypes.c_bool(False))
             return True
         except Exception:
             return False
 
     def _set_mouse_on_main(self, enable: bool):
-        """Runs on main thread."""
+        """Runs on main thread. 4-Layer physical lock for position and dimensions."""
         try:
             win = getattr(self.window, "native", None)
-            if win:
-                win.setIgnoresMouseEvents_(bool(enable))
+            if not win:
+                return
+            locked = bool(enable)
+
+            if locked:
+                # 1. 硬件级拦截
+                cur_frame = win.frame() if hasattr(win, "frame") else None
+                win._locked_frame = cur_frame
+                win._hud_locked = True
+
+                # 2. 剥离可拖拽与背景拖拽
+                if hasattr(win, "setMovable_"):
+                    win.setMovable_(False)
+                if hasattr(win, "setMovableByWindowBackground_"):
+                    win.setMovableByWindowBackground_(False)
+
+                # 3. 剥离 NSWindowStyleMaskResizable 消除拉伸光标
+                if hasattr(win, "styleMask") and hasattr(win, "setStyleMask_"):
+                    try:
+                        current_mask = win.styleMask()
+                        if isinstance(current_mask, int):
+                            win.setStyleMask_(current_mask & ~AppKit.NSWindowStyleMaskResizable)
+                    except Exception:
+                        pass
+
+                # 4. 锁定最小/最大尺寸为当前尺寸
+                sz = getattr(cur_frame, "size", None) if cur_frame else None
+                if sz is None and isinstance(cur_frame, (tuple, list)) and len(cur_frame) >= 2:
+                    sz = cur_frame[1]
+                if sz is not None:
+                    if hasattr(win, "setMinSize_") and hasattr(win, "setMaxSize_"):
+                        try:
+                            win.setMinSize_(sz)
+                            win.setMaxSize_(sz)
+                        except Exception:
+                            pass
+            else:
+                # 解锁
+                win._hud_locked = False
+                win._locked_frame = None
+
+                if hasattr(win, "setMovable_"):
+                    win.setMovable_(True)
+                if hasattr(win, "setMovableByWindowBackground_"):
+                    win.setMovableByWindowBackground_(True)
+
+                # 恢复可缩放
+                if hasattr(win, "styleMask") and hasattr(win, "setStyleMask_"):
+                    try:
+                        current_mask = win.styleMask()
+                        if isinstance(current_mask, int):
+                            win.setStyleMask_(current_mask | AppKit.NSWindowStyleMaskResizable)
+                    except Exception:
+                        pass
+
+                # 恢复自由缩放边界
+                if _pyobjc_available:
+                    if hasattr(win, "setMinSize_") and hasattr(win, "setMaxSize_"):
+                        try:
+                            win.setMinSize_(AppKit.NSSize(200, 80))
+                            win.setMaxSize_(AppKit.NSSize(10000, 10000))
+                        except Exception:
+                            pass
+
+            if hasattr(win, "setIgnoresMouseEvents_"):
+                win.setIgnoresMouseEvents_(False)
         except Exception:
             pass
 
     def is_click_through(self) -> bool:
-        """Queries native mouse event ignoring state."""
-        if threading.current_thread() is not threading.main_thread():
-            return self.is_locked
-
-        if _pyobjc_available and self.window:
-            try:
-                win = getattr(self.window, "native", None)
-                if win:
-                    return bool(win.ignoresMouseEvents())
-            except Exception:
-                pass
-
-        ptr = self._get_ptr()
-        if not ptr or not _msgSend_bool_p:
-            return self.is_locked
-
-        try:
-            val = _msgSend_bool_p(ptr, _SEL_ignoresMouseEvents)
-            return bool(val)
-        except Exception:
-            return self.is_locked
+        """Queries position locking state."""
+        return self.is_locked
 
     def set_stealth_mode(self, enable: bool) -> bool:
         """
@@ -497,6 +780,17 @@ class WindowsWindowController:
         if self._hwnd:
             return self._hwnd
 
+        # Prioritize matching bound window title if available (e.g. dual HUD titles)
+        title = getattr(self.window, "title", None)
+        if user32 and title:
+            try:
+                hwnd = user32.FindWindowW(None, title)
+                if hwnd:
+                    self._hwnd = hwnd
+                    return self._hwnd
+            except Exception:
+                pass
+
         # Method 1: Strictly find HUD by its unique title "Qwen_Meeting_HUD_Overlay_7x9"
         # to eliminate GetForegroundWindow focus misfires
         if user32:
@@ -517,17 +811,6 @@ class WindowsWindowController:
             try:
                 self._hwnd = int(native.Handle)
                 return self._hwnd
-            except Exception:
-                pass
-
-        # Method 3: Fallback by window title if available
-        title = getattr(self.window, "title", None)
-        if user32 and title:
-            try:
-                hwnd = user32.FindWindowW(None, title)
-                if hwnd:
-                    self._hwnd = hwnd
-                    return self._hwnd
             except Exception:
                 pass
 
@@ -622,6 +905,7 @@ class NativeWindowController:
         self.window = window
         self.is_locked = False
         self.is_stealth = False
+        self._last_lock_toggle_ts = 0.0
         if sys.platform == "darwin":
             self.impl = MacOSWindowController(window)
         elif sys.platform == "win32":
@@ -644,6 +928,7 @@ class NativeWindowController:
     def set_click_through(self, enable: bool) -> bool:
         """Toggles native click-through passthrough."""
         self.is_locked = bool(enable)
+        self._last_lock_toggle_ts = time.monotonic()
         if self.impl:
             return self.impl.set_click_through(enable)
         return False
@@ -675,28 +960,83 @@ class HudApi:
     """
     Python bridge methods callable from JavaScript via window.pywebview.api.
     Exposes lock toggling, stealth mode, config drawer opening, graceful close, and status queries.
+    Supports per-window controller isolation for independent dual HUD locking.
     """
 
-    def __init__(self, app: "FloatingHUDApp"):
+    def __init__(
+        self,
+        app: "FloatingHUDApp",
+        controller: Optional["NativeWindowController"] = None,
+        window=None,
+        window_id: Optional[str] = None,
+    ):
         self.app = app
+        self.controller = controller
+        self.window = window
+        self.window_id = window_id
 
-    def toggle_lock(self, locked: Optional[bool] = None) -> bool:
+    def toggle_lock(self, locked: Optional[bool] = None, window_id: Optional[str] = None) -> bool:
         """
         Toggles native click-through and syncs with backend POST /api/hud/lock.
+        If controller or window_id is bound, toggles ONLY that target window!
         """
-        if locked is None:
-            new_locked = not self.app.is_click_through()
-        else:
-            new_locked = bool(locked)
+        wid = window_id or self.window_id
+        target_ctrl = None
+        if window_id and hasattr(self.app, "controller_map") and window_id in self.app.controller_map:
+            target_ctrl = self.app.controller_map[window_id]
+        elif window_id and window_id == "en" and len(getattr(self.app, "controllers", [])) > 0:
+            target_ctrl = self.app.controllers[0]
+        elif window_id and window_id == "zh" and len(getattr(self.app, "controllers", [])) > 1:
+            target_ctrl = self.app.controllers[1]
+        elif not window_id and self.controller:
+            target_ctrl = self.controller
+        elif wid:
+            if hasattr(self.app, "controller_map") and wid in self.app.controller_map:
+                target_ctrl = self.app.controller_map[wid]
+            elif wid == "en" and len(getattr(self.app, "controllers", [])) > 0:
+                target_ctrl = self.app.controllers[0]
+            elif wid == "zh" and len(getattr(self.app, "controllers", [])) > 1:
+                target_ctrl = self.app.controllers[1]
+        elif self.controller:
+            target_ctrl = self.controller
 
-        self.app.set_click_through(new_locked)
+        if target_ctrl:
+            if locked is None:
+                new_locked = not target_ctrl.is_click_through()
+            else:
+                new_locked = bool(locked)
+            target_ctrl._last_lock_toggle_ts = time.monotonic()
+            target_ctrl.set_click_through(new_locked)
+            if hasattr(self.app, "_update_is_locked"):
+                self.app._update_is_locked()
+        else:
+            if locked is None:
+                try:
+                    current_locked = self.app.is_click_through(wid) if wid is not None else self.app.is_click_through()
+                except TypeError:
+                    current_locked = self.app.is_click_through()
+                new_locked = not current_locked
+            else:
+                new_locked = bool(locked)
+
+            try:
+                if wid is not None:
+                    self.app.set_click_through(new_locked, window_id=wid)
+                else:
+                    self.app.set_click_through(new_locked)
+            except TypeError:
+                self.app.set_click_through(new_locked)
 
         # Asynchronously sync with backend HTTP endpoint (non-blocking)
         def _sync_backend_lock():
             try:
                 import urllib.request
                 url = f"http://{self.app.host}:{self.app.port}/api/hud/lock"
-                payload = json.dumps({"locked": new_locked}).encode("utf-8")
+                payload_dict = {"locked": new_locked}
+                if wid:
+                    payload_dict["window_id"] = wid
+                    payload_dict["source"] = "hud"
+                payload = json.dumps(payload_dict).encode("utf-8")
                 req = urllib.request.Request(
                     url,
                     data=payload,
@@ -709,7 +1049,14 @@ class HudApi:
                 pass
 
         threading.Thread(target=_sync_backend_lock, daemon=True).start()
-        return bool(self.app.is_click_through())
+        if target_ctrl:
+            return bool(target_ctrl.is_click_through())
+        try:
+            if wid is not None:
+                return bool(self.app.is_click_through(wid))
+            return bool(self.app.is_click_through())
+        except TypeError:
+            return bool(self.app.is_click_through())
 
     def set_stealth_mode(self, enable: bool) -> bool:
         """Toggles stealth mode (screen-share exclusion)."""
@@ -734,22 +1081,32 @@ class HudApi:
         """Returns current lock status, stealth status, window position, platform info."""
         pos_x = 0
         pos_y = 0
+        win = self.window or self.app.window
         try:
-            if self.app.window:
-                pos_x = getattr(self.app.window, "x", 0) or 0
-                pos_y = getattr(self.app.window, "y", 0) or 0
+            if win:
+                pos_x = getattr(win, "x", 0) or 0
+                pos_y = getattr(win, "y", 0) or 0
         except Exception:
             pass
 
+        try:
+            if self.controller:
+                locked = self.controller.is_click_through()
+            elif self.window_id is not None:
+                locked = self.app.is_click_through(self.window_id)
+            else:
+                locked = self.app.is_click_through()
+        except TypeError:
+            locked = self.app.is_click_through()
         return {
-            "locked": self.app.is_click_through(),
+            "locked": locked,
             "stealth": self.app.is_stealth_mode(),
             "x": pos_x,
             "y": pos_y,
             "width": self.app.width,
             "height": self.app.height,
             "platform": sys.platform,
-            "channel": self.app.channel,
+            "channel": self.window_id or self.app.channel,
             "status": "ok",
         }
 
@@ -785,16 +1142,34 @@ class FloatingHUDApp:
         self.stealth_init = stealth
         self.is_stealth = stealth
         self.is_locked = False
+        self._last_lock_toggle_ts = 0.0
         self.is_dual = bool(dual or channel == "dual")
         self.window = None
         self.windows = []
         self.controller = None
         self.controllers = []
+        self.controller_map = {}
+        self.window_map = {}
         self.api = HudApi(self)
+        if self.is_dual:
+            self.api_en = HudApi(self, window_id="en")
+            self.api_zh = HudApi(self, window_id="zh")
+        else:
+            self.api_en = None
+            self.api_zh = None
         self._stopped = False
 
     def create_window(self):
         """Creates the pywebview window(s) with unique title and native transparent/frameless settings."""
+        # Hook BrowserView.WindowHost on macOS Cocoa to use native HUDPanelHost
+        if sys.platform == "darwin" and _pyobjc_available and HUDPanelHost is not None:
+            try:
+                import webview.platforms.cocoa as cocoa
+                cocoa.BrowserView.WindowHost = HUDPanelHost
+                AppKit.NSApplication.sharedApplication().setActivationPolicy_(1)
+            except Exception:
+                pass
+
         if webview and hasattr(webview, "settings"):
             webview.settings["DRAG_REGION_SELECTOR"] = ".pywebview-drag-region, .drag-handle, .drag-anchor-corner, #drag-anchor-corner"
             webview.settings["DRAG_REGION_DIRECT_TARGET_ONLY"] = False
@@ -826,6 +1201,11 @@ class FloatingHUDApp:
                 url_en = f"file://{html_path}?host={self.host}&port={self.port}&channel=en&_t={cache_ts}"
                 url_zh = f"file://{html_path}?host={self.host}&port={self.port}&channel=zh&_t={cache_ts}"
 
+                if self.api_en is None:
+                    self.api_en = HudApi(self, window_id="en")
+                if self.api_zh is None:
+                    self.api_zh = HudApi(self, window_id="zh")
+
                 win_en = webview.create_window(
                     title="Qwen_Meeting_HUD_En_中译英",
                     url=url_en,
@@ -839,7 +1219,7 @@ class FloatingHUDApp:
                     resizable=True,
                     easy_drag=False,
                     background_color="#00000000",
-                    js_api=self.api,
+                    js_api=self.api_en,
                 )
                 win_zh = webview.create_window(
                     title="Qwen_Meeting_HUD_Zh_英译中",
@@ -854,12 +1234,22 @@ class FloatingHUDApp:
                     resizable=True,
                     easy_drag=False,
                     background_color="#00000000",
-                    js_api=self.api,
+                    js_api=self.api_zh,
                 )
+                ctrl_en = NativeWindowController(win_en)
+                ctrl_zh = NativeWindowController(win_zh)
+
+                self.api_en.window = win_en
+                self.api_en.controller = ctrl_en
+                self.api_zh.window = win_zh
+                self.api_zh.controller = ctrl_zh
+
                 self.windows = [win_en, win_zh]
                 self.window = win_en
-                self.controllers = [NativeWindowController(win_en), NativeWindowController(win_zh)]
+                self.controllers = [ctrl_en, ctrl_zh]
                 self.controller = self.controllers[0]
+                self.controller_map = {"en": ctrl_en, "zh": ctrl_zh}
+                self.window_map = {"en": win_en, "zh": win_zh}
             else:
                 if self.channel and self.channel != "auto":
                     url = f"file://{html_path}?host={self.host}&port={self.port}&channel={self.channel}&_t={cache_ts}"
@@ -883,6 +1273,10 @@ class FloatingHUDApp:
                 self.windows = [self.window]
                 self.controllers = [NativeWindowController(self.window)]
                 self.controller = self.controllers[0]
+                self.controller_map = {}
+                self.window_map = {}
+                self.api.window = self.window
+                self.api.controller = self.controller
 
             # Register lifecycle hooks across all windows
             for w, ctrl in zip(self.windows, self.controllers):
@@ -929,13 +1323,40 @@ class FloatingHUDApp:
             while not self._stopped:
                 try:
                     if self.is_locked:
+                        now = time.monotonic()
                         url = f"http://{self.host}:{self.port}/api/hud/lock"
                         req = urllib.request.Request(url, headers={"User-Agent": "QwenHUD/5.0"})
                         with urllib.request.urlopen(req, timeout=1.0) as resp:
                             if resp.status == 200:
                                 data = json.loads(resp.read().decode("utf-8"))
-                                if data.get("locked") is False and self.is_locked:
-                                    self.set_click_through(False)
+                                remote_locked = data.get("locked")
+                                remote_windows = data.get("windows", {})
+
+                                if self.is_dual and self.controller_map:
+                                    # Dual mode: check each window independently
+                                    for wid, ctrl in self.controller_map.items():
+                                        if ctrl.is_click_through():
+                                            last_ts = getattr(ctrl, "_last_lock_toggle_ts", 0.0)
+                                            if (now - last_ts) > 3.0:
+                                                wid_locked = remote_windows.get(wid) if remote_windows else remote_locked
+                                                if wid_locked is False or remote_locked is False:
+                                                    self.set_click_through(False, window_id=wid)
+                                                    win = self.window_map.get(wid)
+                                                    if win:
+                                                        try:
+                                                            win.evaluate_js("if (typeof setLockState === 'function') setLockState(false, true);")
+                                                        except Exception:
+                                                            pass
+                                else:
+                                    # Single window mode
+                                    if (now - getattr(self, "_last_lock_toggle_ts", 0.0)) > 3.0:
+                                        if remote_locked is False and self.is_locked:
+                                            self.set_click_through(False)
+                                            for win in self.windows:
+                                                try:
+                                                    win.evaluate_js("if (typeof setLockState === 'function') setLockState(false, true);")
+                                                except Exception:
+                                                    pass
                 except Exception:
                     pass
                 time.sleep(1.0)
@@ -975,20 +1396,51 @@ class FloatingHUDApp:
         except Exception:
             pass
 
-    def set_click_through(self, enable: bool) -> bool:
-        """Toggles native click-through mode across all active windows."""
-        self.is_locked = bool(enable)
+    def _update_is_locked(self):
+        if self.controllers:
+            self.is_locked = any(ctrl.is_click_through() for ctrl in self.controllers)
+
+    def set_click_through(self, enable: bool, window_id: Optional[str] = None) -> bool:
+        """Toggles native click-through mode for a specific window or across all active windows."""
+        now = time.monotonic()
+        self._last_lock_toggle_ts = now
         success = True
-        for ctrl in self.controllers:
-            try:
-                if ctrl.set_click_through(enable) is False:
+        target_ctrls = []
+        if window_id:
+            if hasattr(self, "controller_map") and window_id in self.controller_map:
+                target_ctrls = [self.controller_map[window_id]]
+            elif window_id == "en" and len(self.controllers) > 0:
+                target_ctrls = [self.controllers[0]]
+            elif window_id == "zh" and len(self.controllers) > 1:
+                target_ctrls = [self.controllers[1]]
+        if not target_ctrls:
+            target_ctrls = self.controllers
+
+        if target_ctrls:
+            for ctrl in target_ctrls:
+                ctrl._last_lock_toggle_ts = now
+                try:
+                    if ctrl.set_click_through(enable) is False:
+                        success = False
+                except Exception:
                     success = False
-            except Exception:
-                success = False
+            self._update_is_locked()
+        else:
+            self.is_locked = bool(enable)
+
         return success
 
-    def is_click_through(self) -> bool:
-        """Returns whether native click-through mode is active."""
+    def is_click_through(self, window_id: Optional[str] = None) -> bool:
+        """Returns whether native click-through mode is active (for a specific window or globally)."""
+        if window_id:
+            if hasattr(self, "controller_map") and window_id in self.controller_map:
+                return self.controller_map[window_id].is_click_through()
+            if window_id == "en" and len(self.controllers) > 0:
+                return self.controllers[0].is_click_through()
+            if window_id == "zh" and len(self.controllers) > 1:
+                return self.controllers[1].is_click_through()
+        if self.controllers:
+            self._update_is_locked()
         return self.is_locked
 
     def set_stealth_mode(self, enable: bool) -> bool:

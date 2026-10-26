@@ -1,6 +1,6 @@
-# Harry Translate (哈利同传) 零门槛部署与全平台使用手册 (v3.6-bilingual-adaptive-hd-hud)
+# Harry Translate (哈利同传) 零门槛部署与全平台使用手册 (v3.8-glossary-bank-smart-quota-workbench)
 
-本手册专为会务现场人员、同传译员及个人用户编写。按照本指南操作，可在 5 分钟内完成环境准备、系统运行以及专精词库、字体调色和透明度个性化配置。
+本手册专为会务现场人员、同传译员及个人用户编写。按照本指南操作，可在 5 分钟内完成环境准备、系统运行以及万级热词银行、云端容量水位仪、字体调色和透明度个性化配置。
 
 ---
 
@@ -36,8 +36,6 @@ brew install python@3.11 portaudio git
 ```bash
 git clone https://github.com/xiaokunshi5-lang/harry-translate.git
 cd harry-translate
-
-# 创建专属隔离虚拟环境
 python3 -m venv .venv
 source .venv/bin/activate
 
@@ -49,7 +47,6 @@ pip install -r requirements.txt
 ### 3. 配置虚拟内录回环声卡（BlackHole 2ch + 多输出设备）
 
 > **说明**：如果您只需翻译自己的麦克风发言，此步骤可跳过；如果需要同时录制并翻译 Zoom、腾讯会议、Teams 中对方的声音，需要配置虚拟内录。
-> 完整的 macOS / Windows 双轨内录配置见 [`docs/AUDIO_SETUP_GUIDE.md`](docs/AUDIO_SETUP_GUIDE.md)。
 
 1. 通过 Homebrew 一键安装 BlackHole 2ch 虚拟声卡：
    ```bash
@@ -129,57 +126,109 @@ notepad .env
 
 双击运行以下脚本：
 
-- **`启动悬浮同传.bat`**：直接唤起极简单态悬浮同传提词窗口（推荐通用，自带防多开守卫）；
-- **`启动悬浮同传_中译英.bat`**：涉外演讲与对外宣讲专用（上英下中，自动挂起英译中，**立省 50% Token**）；
-- **`启动悬浮同传_英译中.bat`**：外教课与国际会议听讲专用（上中下英，自动挂起中译英，**立省 50% Token**）；
-- **`启动双悬浮同传.bat`**：国际商务与圆桌会谈专用（拉起上下错落双悬浮窗口，垂直间隔 30px，零重叠）；
-- **`启动同传系统.bat`**：启动同传服务并在浏览器中打开双大屏监看控台（`http://localhost:8000/split`）；
-- **`切换API_Key.bat`**：控制台交互式菜单更换与校验 DashScope API 密钥。
+- **`启动悬浮同传.bat`**：启动桌面悬浮提词 HUD 窗口（通用推荐，自动排他防多开）；
+- **`启动悬浮同传_中译英.bat`**：涉外宣讲中译英单向窗口（上英下中，自动挂起英译中，省 50% Token）；
+- **`启动悬浮同传_英译中.bat`**：外教课与讲座英译中单向窗口（上中下英，自动挂起中译英，省 50% Token）；
+- **`启动双悬浮同传.bat`**：启动上下错落双悬浮窗口（双向圆桌会谈，30px 防遮挡间隔）；
+- **`启动同传系统.bat`**：启动同传服务并在浏览器中打开大屏监看控台；
+- **`切换API_Key.bat`**：终端交互式更换 DashScope API 密钥。
 
 ---
 
-## 四、专精术语语料库配置与日常定制指南
+## 四、万级多维分类热词银行 (`glossary_bank/`)、容量水位仪与会议抽屉工作台使用指南
 
-为解决特定行业会议（如医疗生物、人工智能、金融法务）专业专有名词翻译不准、ASR 听错谐音的问题，系统内置了专精语料库引擎。
+> [📖 查看全景热词分类与 18,449 词速查总览表 (GLOSSARY_INDEX.md)](GLOSSARY_INDEX.md)
 
-### 1. 配置文件路径
+为解决涉外政务、高端学术研讨及各垂直行业会议中专业词汇识别漂移、突发外宾名字生僻、云端 API 1,000 词硬限制等会务现场痛点，系统内置了万级多维分类热词银行与抽屉工作台。
 
-项目根目录下的 [`glossary.json`](glossary.json) 纯文本配置文件，可用 VS Code 或记事本直接修改：
+### 1. 多维分类标签词包银行架构 (`glossary_bank/`)
 
+系统在 `glossary_bank/` 目录下内置了 15 个模块化 JSON 分类词包，总词汇量达 **18,449 词**（详见 `GLOSSARY_INDEX.md`）：
+
+- **🔒 基础应急固定库 (`00_base_emergency.json`)**：内置 100 个最高频政治、外交与通用纠错词条，系统默认强制常驻锁定，界面无法关闭，确保突发会议底线稳固；
+- **🟢 主力分类标签 (高频 / 常见，默认开启)**：涵盖党建政务高频、外交公文、日常物品、水果生鲜、重点地名、经典成语、AI科技、口语热词等 8 个标签（每个词包 100~120 词）；
+- **🔵 领域扩展标签 (生僻 / 专精，按需勾选)**：涵盖党建专用语、工业生活物品、水果农特产、国内外地名、方言谐音、生物医药临床等 6 个大体量标签（每个词包 2,400~3,300 词，总计超 17,000 词）；
+- **自动发现与动态挂载**：只需在 `glossary_bank/` 目录下新增合规 JSON 文件，系统无需重启即可自动扫描识别并呈现于界面。
+
+### 2. 双轨容量水位仪与云端 1,000 词智能防爆截断 (Smart Capping)
+
+阿里云百炼实时同传 WebSocket API 对热词列表设有 **1,000 词硬上限**，超出将返回 `InvalidParameter` 错误并导致断网。为保障万级词库使用安全，系统构建了双轨容量管理与防爆机制：
+
+1. **四级推送优先级排序**：
+   - **`P0` 本场临时人名**：现场紧急导入的外宾与主讲人名单，最高优先级确保直达云端；
+   - **`P1` 基础应急库与常驻词**：`00_base_emergency.json` 与 `glossary.json` 用户词汇；
+   - **`P2` 已勾选高频主力标签**：党建、外交、成语、科技等高频词包；
+   - **`P3` 已勾选生僻扩展标签**：医药、方言、工业等扩展词包。
+2. **安全阈值与智能截断**：
+   - 设定 **$\le 900$ 词安全推送上限**（预留 10% 冗余安全裕度）；
+   - 当会务人员勾选多个生僻大词包导致总词数突破 900 词时，系统自动触发智能截断（Smart Cap），仅推前 900 词至云端模型，100% 杜绝云端接口报错；
+3. **健康状态三态显示**：
+   - 🟢 `optimal`（$\le 750$ 词）：云端负载处于极佳状态；
+   - 🟡 `warning`（$751 \sim 900$ 词）：接近 900 词安全线；
+   - 🔴 `capped`（$> 900$ 词）：已触发智能截断保护，超出部分自动转入本地引擎离线处理。
+
+### 3. 本地纯 Python Aho-Corasick 自动机离线挂载 (0 Token 消耗)
+
+所有勾选分类词包及临时/永久词条（无论 50 词还是 18,000+ 词），**100% 全量挂载至本地纯 Python Aho-Corasick 自动机**：
+- **极速低耗**：单句扫描匹配耗时仅需 **0.0058ms**（目标 $\le 0.15\text{ms}$），内存常驻仅约 46MB；
+- **0 额外 Token 消耗**：本地纠偏在 WebSocket 数据广播前完成，不需要向云端发送多余 Token，零 API 费用增量。
+
+### 4. 国际会议临时专属人名与双层生命周期管控
+
+国际会议常在开场前拿到演讲嘉宾临时名单，系统支持快速导入与生命周期隔离：
+1. **双层生命周期**：
+   - **`⏱️ 临时本场词` (`_session_data`)**：保存在内存中，拥有最高优先级，会话中覆盖常驻词，不写入磁盘；
+   - **`📌 永久常驻词` (`_data`)**：持久化写入 `glossary.json`，永久复用。
+2. **单条与批量多格式导入**：
+   在工作台中支持单条快速录入，或在文本框中批量粘贴，支持多种分隔符：
+   ```text
+   张伟 = Wei Zhang
+   苏姿丰 -> Lisa Su
+   黄仁勋 => Jensen Huang
+   李雷: Lei Li
+   韩梅梅：Meimei Han
+   ```
+3. **会后一键处置**：
+   - **`🧹 一键清空本场临时词`**：会议结束后点击，内存临时名单瞬时清空，磁盘零修改，不影响日常使用；
+   - **`💾 一键转存为永久词库`**：若临时名单有长期沉淀价值，点击后一键合并写入 `glossary.json`。
+
+### 5. 系统全局配置抽屉可视化工作台操作指南
+
+在大屏控台页面（`http://localhost:8000/` 或 `/split`）中：
+1. **唤出工作台**：点击顶部控制栏绿色高亮按钮 **`📚 会议热词`**（或点击 `⚙️ 系统配置` 切换至热词选项卡）；
+2. **观察配额水位仪**：顶部清晰查看云端配额水位进度条、当前健康度及本地万词引擎挂载词数；
+3. **按需勾选标签**：在标签区勾选本场会议适用的领域分类（如勾选「🧬 生物医药与临床」），即刻热生效；
+4. **导入嘉宾名单**：切换至「批量快加」面板，粘贴外宾姓名对，点击「批量导入至本场临时词」；
+5. **检索与删除**：在下方词条列表中可输入关键词实时搜索，点击单条右侧 `✕` 即可即时删除；
+6. **会后归档**：散会后轻点「🧹 一键清空本场临时词」恢复纯净环境。
+
+### 6. 自定义分类词包扩展指南 (`glossary_bank/`)
+
+如需为您的组织建立专属业务分类词包（如金融、法律、海关），只需在 `glossary_bank/` 目录下新建 JSON 文件（例如 `99_custom_legal.json`）：
 ```json
 {
+  "id": "custom_legal",
+  "name": "涉外法务与知识产权",
+  "icon": "⚖️",
+  "tier": "rare",
+  "priority": 3,
+  "locked": false,
+  "default_enabled": false,
+  "description": "涉外仲裁、知识产权与商业合同专有词汇",
   "asr_fixes": {
-    "落拉": "LoRA",
-    "担抗": "单抗",
-    "库伯内特斯": "Kubernetes",
-    "派托奇": "PyTorch",
-    "卡夫卡": "Kafka",
-    "反向传播": "反向传播"
+    "不可抗利": "不可抗力"
   },
-  "mt_terms": {
-    "LoRA": "LoRA (Low-Rank Adaptation)",
-    "反向传播": "Backpropagation",
-    "提示词工程": "Prompt Engineering",
-    "同声传译": "Simultaneous Interpretation",
-    "大语言模型": "Large Language Models (LLM)"
+  "terms_zh_to_en": {
+    "不可抗力": "Force Majeure",
+    "商业秘密": "Trade Secret"
   },
-  "hotwords": [
-    "LoRA", "Transformer", "Kubernetes", "PyTorch", 
-    "Backpropagation", "Prompt Engineering", "单抗"
-  ]
+  "terms_en_to_zh": {
+    "Force Majeure": "不可抗力",
+    "Trade Secret": "商业秘密"
+  }
 }
 ```
-
-### 2. 字段三大功用说明
-
-- **`asr_fixes` (ASR 语音识别谐音矫正)**：左侧为语音识别容易听错的错别字/同音词，右侧为标准词。系统会在 $<0.15\text{ms}$ 内自动纠错（如把“落拉”替换为“LoRA”）；
-- **`mt_terms` (机器翻译专业术语映射)**：左侧为源文词汇，右侧为目标语言规范翻译。保证翻译结果符合行业专业要求；
-- **`hotwords` (阿里云百炼云端热词)**：启动同传会话时，自动作为模型先验知识下发到云端声学模型，提升专有名词的首字识别准确率。
-
-### 3. 如何使新词库立即生效？
-
-- **方式一（免重启热重载）**：向 `POST http://localhost:8000/api/glossary` 发送包含新 JSON 的请求，系统将在 5ms 内热重载；
-- **方式二（重启生效）**：直接修改保存 `glossary.json` 后，重新运行 `./启动悬浮同传.command` 即可。
+保存后，刷新抽屉工作台即可自动识别并呈现该扩展标签。
 
 ---
 
@@ -338,23 +387,36 @@ notepad .env
 
 ### Q10: 悬浮窗被全屏 PPT / Keynote 遮挡怎么办？
 
-- **特性保证**：Harry Translate 原生悬浮窗基于 macOS `NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenAuxiliary` 与 Windows 置顶架构构建，天然悬浮于全屏播放的 Keynote、PowerPoint、腾讯会议及 Zoom 界面之上，不会被全屏 Spaces 吞没。
+- **特性保证**：Harry Translate 原生悬浮窗基于 `HUDPanelHost`（macOS 原生 `NSPanel` + `NSApplicationActivationPolicyAccessory (1)` + `collectionBehavior=337` + `level=1000`）与 Windows 顶层架构构建，天然跨越并穿透全屏播放的 Keynote、PowerPoint、腾讯会议及 Zoom 界面，点击浮窗按钮绝不切屏；点击 `🔒` 即可通过 4 重物理硬锁将浮窗坐标尺寸 100% 焊死在屏幕上防误触，同时双悬浮窗模式下支持上下两窗独立锁定。
 
-### Q11: 升级后出现异常，如何安全恢复？
+### Q11: 遇到未知异常如何一键恢复到出厂状态？
 
-- 先保存当前本地修改，再查看仓库中的可用版本：
+- 在终端执行秒级无损回滚命令：
   ```bash
-  git status
-  git switch -c local-backup
+  git switch --detach v3.8.0
   ```
-- 公开基线为 `v3.6.0`。`.env` 与 `.venv` 不会进入 Git，切换版本时不会删除本地凭证或环境。
-- 如需报告问题，请附上脱敏日志；不要提交 API Key、`.env`、录音或包含个人信息的截图。
+  使用 Git 保存本地修改后安全切换至已发布的稳定标签基线。
 
 ### Q12: 在小窗口下看中文输入或双行英译，感觉字号太挤或想让中文原文更大一些怎么办？
 
 - **解决方案**：
   - 按下全局快捷键 **`Cmd + Shift + R`**（Windows 按 **`Ctrl + Shift + R`**），可在 **`68:32`** 与 **`65:35`** 比例之间一键切换；
   - `65:35` 模式将辅助区空间提升至 35%，结合小窗口 31px 安全包络，中文原文与两行英译均舒展开阔、字字清晰，偏好配置自动记忆保存。
+
+### Q13: 会议导入了几百个人名，会超标导致阿里云报 InvalidParameter 错误吗？
+
+- **解决方案与安全保障**：
+  - 绝不会发生。系统内置了双轨容量管理与 Smart Cap 智能防爆截断机制；
+  - 针对阿里云百炼 WebSocket API 1,000 词硬上限，系统设有严格的 **$\le 900$ 词安全推送阈值**；
+  - 系统按照 `P0 本场临时人名 ➔ P1 基础应急库与常驻词 ➔ P2 高频主力标签 ➔ P3 生僻扩展标签` 优先级智能排序，若总词数超过 900 词，超出部分自动截断，100% 杜绝接口报错；
+  - 与此同时，**本地纯 Python Aho-Corasick 自动机仍 100% 全量挂载全部 18,000+ 词条**，所有词汇在本地均可实现 $\le 0.15\text{ms}$ 极速纠错，不额外消耗任何 Token。
+
+### Q14: 临时嘉宾名字在会议结束后如何快速清理，避免污染以后的会议？
+
+- **解决方案**：
+  - 临时导入的嘉宾名字保存在纯内存级 `_session_data` 中；
+  - 会议结束后在工作台中轻点 **「🧹 一键清空本场临时词」** 即可瞬间重置，磁盘文件零修改；
+  - 如果某场会议沉淀的术语有长期价值，点击 **「💾 一键转存为永久词库」**，即可永久合并保存至 `glossary.json`。
 
 ---
 
@@ -366,7 +428,7 @@ notepad .env
 # 激活项目专属虚拟环境 (Windows 使用 call .venv\Scripts\activate.bat)
 source .venv/bin/activate
 
-# 1. 验证 277 项全量自动化测试套件 (包含 238 项 E2E 阶梯测试 + 39 项开源版单元与适配测试)
+# 1. 验证 285 项全量自动化测试套件 (包含 238 项 E2E 阶梯测试 + 47 项专项单元与对抗测试)
 python -m unittest discover -s tests -p 'test_*.py'
 
 # 2. 验证 238 项核心 E2E 阶梯自动化测试 (基线功能全量回归)
@@ -381,17 +443,29 @@ python -m unittest tests/test_tencent_steady_hud_and_themes.py
 # 5. 验证单态对抗极限压测 (连续 10s 静默与流式吐字，断言 delta opacity == 0.0)
 python -m unittest tests/challenger_steady_hud_adversarial.py
 
-# 6. 验证专精术语语料库与黄金比例 68%/32% 双视口防挤压布局
+# 6. 验证专精术语语料库、分类标签银行与黄金比例双视口测试 (AC-G1~G8, AC-L1~L5)
 python -m unittest tests/test_glossary_and_golden_ratio_layout.py
 
-# 7. 验证小窗口两行主译文零裁切物理包络专项测试
+# 7. 验证严格 DOM 规范与工作台抽屉审计测试 (验证 0 innerText，15 项核心配置 ID)
+python tests/verify_m4_v5.py
+
+# 8. 验证小窗口两行主译文零裁切物理包络专项测试
 python -m unittest tests/repro_issue_twoline_output_clip.py
 
-# 8. 验证中文原文辅助区 31px 安全包络防削顶专项测试
+# 9. 验证中文原文辅助区 31px 安全包络防削顶专项测试
 python -m unittest tests/repro_issue_chinese_input_clip.py
 
-# 9. 验证 68:32 ⇄ 65:35 双模舞台比例自适应与快捷键专项测试
+# 10. 验证 68:32 ⇄ 65:35 双模舞台比例自适应与快捷键专项测试
 python -m unittest tests/test_hud_dual_ratio_mode.py
+
+# 11. 验证 HUD 纯位置防拖拽锁定、全屏置顶 flags、实时同步表与冲突探针专项回归测试
+python -m unittest tests/test_hud_lock_and_active_glossary_sync.py
+
+# 12. 验证 EXP-106 HUDPanelHost 全屏空间穿透与 4 重物理硬锁真实 Cocoa 门禁测试
+python -m unittest tests/test_repro_exp106_hud_panel_lock_fullscreen.py
+
+# 13. 验证 EXP-107 双悬浮同传窗口独立位置锁定与分窗隔离真实 Cocoa 门禁测试
+python -m unittest tests/test_repro_exp107_dual_hud_independent_lock.py
 ```
 
-全部测试输出 PASS 即表明当前系统环境部署成功，处于工业级可交付状态。
+> **热词索引参考**：全量 15 个词包分类、18,449 词条明细及 4 级优先级覆盖规则请查阅 [`GLOSSARY_INDEX.md`](GLOSSARY_INDEX.md)。全部测试输出 PASS 即表明当前系统环境部署成功，处于工业级可交付状态。

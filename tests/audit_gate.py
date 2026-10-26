@@ -483,7 +483,8 @@ def verify_ac_08() -> AuditResult:
         if not orig_key:
             orig_key = "test-placeholder-key"
             server.DASHSCOPE_API_KEY = orig_key
-        if not os.path.exists(server.ENV_FILE):
+        had_env = os.path.exists(server.ENV_FILE)
+        if not had_env:
             server.set_env_value("DASHSCOPE_API_KEY", orig_key)
 
         # 1. GET /api/meta masked key verification
@@ -520,6 +521,12 @@ def verify_ac_08() -> AuditResult:
     except Exception as e:
         elapsed = (time.perf_counter() - t0) * 1000.0
         res.fail_gate(str(e), elapsed)
+    finally:
+        if "had_env" in locals() and not had_env and os.path.exists(server.ENV_FILE):
+            try:
+                os.remove(server.ENV_FILE)
+            except Exception:
+                pass
     return res
 
 

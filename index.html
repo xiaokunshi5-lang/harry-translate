@@ -179,6 +179,16 @@
             border-color: #38bdf8;
             color: #ffffff;
         }
+        .btn-glossary-highlight {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: rgba(52, 211, 153, 0.4);
+            color: #34d399;
+        }
+        .btn-glossary-highlight:hover {
+            background: rgba(16, 185, 129, 0.3);
+            border-color: #34d399;
+            color: #ffffff;
+        }
 
         /* 主体布局 */
         #main-container {
@@ -407,8 +417,8 @@
             position: fixed;
             top: 0;
             right: 0;
-            width: 460px;
-            max-width: 92vw;
+            width: 520px;
+            max-width: 94vw;
             height: 100vh;
             background: rgba(13, 17, 26, 0.90);
             backdrop-filter: blur(28px) saturate(180%);
@@ -640,6 +650,536 @@
             transform: translateY(-1px);
         }
 
+        /* ------------------------------------------------------------------ */
+        /* 会议热词工作台 (Apple Liquid Glass Segmented Tabs & Blocks)         */
+        /* ------------------------------------------------------------------ */
+        .drawer-tabs-bar {
+            display: flex;
+            gap: 6px;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.25);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .drawer-tab-btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            color: #94a3b8;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .drawer-tab-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: #f1f5f9;
+        }
+        .drawer-tab-btn.active {
+            background: rgba(56, 189, 248, 0.15);
+            border-color: rgba(56, 189, 248, 0.4);
+            color: #38bdf8;
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+        }
+        .tab-chip {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #cbd5e1;
+        }
+        .drawer-tab-btn.active .tab-chip {
+            background: rgba(56, 189, 248, 0.25);
+            color: #7dd3fc;
+        }
+
+        .drawer-tab-panel {
+            display: none;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .drawer-tab-panel.active {
+            display: flex;
+        }
+
+        /* Block 1: Quota Watermark */
+        .quota-dashboard-card {
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 14px 16px;
+        }
+        .quota-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .quota-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #f1f5f9;
+        }
+        .quota-number {
+            font-size: 15px;
+            font-weight: 700;
+            color: #38bdf8;
+        }
+        .quota-limit {
+            font-size: 11px;
+            color: #64748b;
+        }
+        .quota-health-badge {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .health-optimal {
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid rgba(34, 197, 94, 0.35);
+            color: #4ade80;
+        }
+        .health-warning {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            color: #fbbf24;
+        }
+        .health-capped {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            color: #f87171;
+        }
+        .quota-track-wrapper {
+            margin: 8px 0 18px 0;
+        }
+        .quota-track {
+            position: relative;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 4px;
+            overflow: visible;
+        }
+        .quota-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease, background 0.3s ease;
+        }
+        .quota-bar-fill.optimal {
+            background: linear-gradient(90deg, #10b981, #34d399);
+        }
+        .quota-bar-fill.warning {
+            background: linear-gradient(90deg, #f59e0b, #fbbf24);
+        }
+        .quota-bar-fill.capped {
+            background: linear-gradient(90deg, #ef4444, #f87171);
+        }
+        .quota-marker-900 {
+            position: absolute;
+            left: 90%;
+            top: -2px;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none;
+        }
+        .quota-marker-line {
+            width: 2px;
+            height: 12px;
+            background: rgba(239, 68, 68, 0.85);
+            box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+        }
+        .quota-marker-label {
+            font-size: 9px;
+            color: #f87171;
+            white-space: nowrap;
+            margin-top: 2px;
+            font-weight: 600;
+        }
+        .quota-footer-row {
+            margin-top: 10px;
+        }
+        .quota-engine-badge {
+            font-size: 11px;
+            color: #94a3b8;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 5px 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            line-height: 1.4;
+        }
+        .quota-local-num {
+            font-weight: 700;
+            color: #a78bfa;
+        }
+        .quota-capped-banner {
+            margin-top: 8px;
+            padding: 8px 10px;
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 6px;
+            font-size: 11px;
+            color: #fca5a5;
+            line-height: 1.4;
+        }
+
+        /* Block 2: Category Tags Checkbox Area */
+        .tags-group-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #cbd5e1;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .tags-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 6px;
+        }
+        .tag-pill-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+            font-size: 12px;
+        }
+        .tag-pill-card:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+        .tag-pill-card.active {
+            background: rgba(56, 189, 248, 0.08);
+            border-color: rgba(56, 189, 248, 0.3);
+        }
+        .tag-pill-card.locked {
+            cursor: default;
+            opacity: 0.85;
+            background: rgba(148, 163, 184, 0.06);
+            border-color: rgba(148, 163, 184, 0.2);
+        }
+        .tag-info {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+        }
+        .tag-icon {
+            font-size: 13px;
+        }
+        .tag-name {
+            color: #e2e8f0;
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .tag-meta {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .tag-count-chip {
+            font-size: 10px;
+            color: #94a3b8;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1px 5px;
+            border-radius: 4px;
+        }
+        .tag-locked-badge {
+            font-size: 10px;
+            color: #fbbf24;
+            background: rgba(234, 179, 8, 0.15);
+            border: 1px solid rgba(234, 179, 8, 0.3);
+            padding: 1px 4px;
+            border-radius: 4px;
+        }
+
+        /* Block 3: Quick Add Inputs */
+        .entry-mode-switch {
+            display: flex;
+            gap: 4px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px;
+            border-radius: 6px;
+            margin-left: auto;
+        }
+        .btn-mode-toggle {
+            padding: 3px 8px;
+            font-size: 11px;
+            background: transparent;
+            border: none;
+            border-radius: 4px;
+            color: #94a3b8;
+            cursor: pointer;
+        }
+        .btn-mode-toggle.active {
+            background: rgba(56, 189, 248, 0.25);
+            color: #38bdf8;
+            font-weight: 600;
+        }
+        .form-row-compact {
+            display: flex;
+            gap: 8px;
+        }
+        .form-field-half {
+            flex: 1;
+        }
+        .drawer-field-label {
+            display: block;
+            font-size: 11px;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+        .drawer-textarea {
+            width: 100%;
+            box-sizing: border-box;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #f8fafc;
+            font-family: monospace;
+            font-size: 12px;
+            padding: 8px 10px;
+            resize: vertical;
+            outline: none;
+        }
+        .drawer-textarea:focus {
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+        }
+        .batch-footer-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+        }
+        .batch-parsed-hint {
+            font-size: 11px;
+            color: #38bdf8;
+            font-weight: 500;
+        }
+        .btn-primary-action {
+            padding: 6px 14px;
+            background: linear-gradient(135deg, #0284c7, #0369a1);
+            border: 1px solid #38bdf8;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-primary-action:hover {
+            background: linear-gradient(135deg, #0369a1, #075985);
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+        }
+
+        /* Block 4: Terms List & Post-Meeting Actions */
+        .terms-filter-bar {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .terms-scope-filters {
+            display: flex;
+            gap: 6px;
+        }
+        .scope-filter-btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 5px 8px;
+            font-size: 11px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            color: #94a3b8;
+            cursor: pointer;
+        }
+        .scope-filter-btn.active {
+            background: rgba(56, 189, 248, 0.15);
+            border-color: rgba(56, 189, 248, 0.4);
+            color: #38bdf8;
+            font-weight: 600;
+        }
+        .filter-count-badge {
+            font-size: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1px 5px;
+            border-radius: 8px;
+        }
+        .search-input {
+            font-size: 12px;
+            padding: 6px 10px;
+        }
+        .terms-list-container {
+            max-height: 220px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+            padding: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .term-item-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            font-size: 12px;
+        }
+        .term-item-row:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+        .term-main {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+            flex: 1;
+        }
+        .term-badge-session {
+            font-size: 10px;
+            padding: 1px 4px;
+            border-radius: 4px;
+            background: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            flex-shrink: 0;
+        }
+        .term-badge-permanent {
+            font-size: 10px;
+            padding: 1px 4px;
+            border-radius: 4px;
+            background: rgba(56, 189, 248, 0.15);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            flex-shrink: 0;
+        }
+        .term-badge-type {
+            font-size: 10px;
+            padding: 1px 4px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.06);
+            color: #94a3b8;
+            flex-shrink: 0;
+        }
+        .term-pair {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .term-source-text {
+            color: #f1f5f9;
+            font-weight: 500;
+        }
+        .term-arrow {
+            color: #64748b;
+            font-size: 11px;
+        }
+        .term-target-text {
+            color: #38bdf8;
+            font-weight: 500;
+        }
+        .btn-delete-term {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 13px;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 6px;
+            flex-shrink: 0;
+        }
+        .btn-delete-term:hover {
+            color: #f87171;
+            background: rgba(239, 68, 68, 0.15);
+        }
+        .terms-empty-hint {
+            text-align: center;
+            padding: 18px;
+            color: #64748b;
+            font-size: 12px;
+        }
+        .post-meeting-actions {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .actions-label {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        .actions-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .btn-action-danger {
+            padding: 7px 10px;
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            border-radius: 6px;
+            color: #fca5a5;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-action-danger:hover {
+            background: rgba(239, 68, 68, 0.25);
+            border-color: rgba(239, 68, 68, 0.6);
+            color: #fff;
+        }
+        .btn-action-promote {
+            padding: 7px 10px;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            border-radius: 6px;
+            color: #6ee7b7;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-action-promote:hover {
+            background: rgba(16, 185, 129, 0.28);
+            border-color: rgba(16, 185, 129, 0.7);
+            color: #fff;
+        }
+
         /* Toast 悬浮通知 */
         .toast-notification {
             position: fixed;
@@ -687,6 +1227,7 @@
         </div>
         <div class="controls" id="header-controls">
             <a href="/" class="btn-link" id="btn-home" style="display: none;">主控面板</a>
+            <button id="btn-open-glossary" class="btn-link btn-glossary-highlight" onclick="openConfigDrawer('glossary')" title="打开会议热词配置工作台">📚 会议热词</button>
             <button id="btn-open-drawer" class="btn-link btn-config-highlight" onclick="openConfigDrawer()" title="打开系统全局配置抽屉">⚙️ 系统配置</button>
             <button onclick="changeFontSize(2)">字体 +</button>
             <button onclick="changeFontSize(-2)">字体 -</button>
@@ -743,71 +1284,300 @@
             <button id="drawer-close-btn" class="drawer-close-btn" onclick="closeConfigDrawer()" title="关闭抽屉 (Esc)">✕</button>
         </div>
 
+        <!-- Apple Liquid Glass Segmented Tab Bar -->
+        <div class="drawer-tabs-bar" role="tablist">
+            <button type="button" id="tab-btn-glossary" class="drawer-tab-btn active" onclick="switchDrawerTab('glossary')" role="tab" aria-selected="true">
+                <span>📚 会议热词工作台</span>
+                <span class="tab-chip" id="chip-cloud-load">0/1000</span>
+            </button>
+            <button type="button" id="tab-btn-system" class="drawer-tab-btn" onclick="switchDrawerTab('system')" role="tab" aria-selected="false">
+                <span>⚙️ 系统基础配置</span>
+            </button>
+        </div>
+
         <div class="drawer-body">
-            <!-- 1. API Key 配置 -->
-            <div class="drawer-section">
-                <div class="drawer-section-title">🔑 阿里云百炼 DashScope API 密钥</div>
-                <div class="drawer-field">
-                    <div class="drawer-label">当前生效 Key：</div>
-                    <span id="drawer-masked-key" class="masked-key-display">正在获取...</span>
-                </div>
-                <div class="drawer-field">
-                    <div class="drawer-label">更新 API Key：</div>
-                    <div class="drawer-input-row">
-                        <input type="password" id="drawer-api-key" class="drawer-input" placeholder="在此输入新的 DashScope API Key">
-                        <button type="button" id="btn-toggle-key" class="drawer-input-btn" onclick="toggleApiKeyVisibility()" title="显示/隐藏明文">👁️</button>
+            <!-- Tab Panel 1: 会议热词工作台 (Block 1 ~ Block 4) -->
+            <div id="panel-glossary" class="drawer-tab-panel active" role="tabpanel">
+                <!-- Block 1: 容量水位进度条仪表盘 -->
+                <div class="drawer-section quota-dashboard-card">
+                    <div class="quota-header-row">
+                        <div class="quota-title">
+                            <span>☁️ 云端 API 热词负荷：</span>
+                            <span id="quota-cloud-count" class="quota-number">0</span>
+                            <span class="quota-limit"> / 1,000 词 (上限)</span>
+                        </div>
+                        <span id="quota-health-badge" class="quota-health-badge health-optimal">健康 (Optimal)</span>
                     </div>
-                    <div class="drawer-note">留空保持当前 Key 不变。支持通义千问与百炼同传服务。</div>
-                </div>
-            </div>
-
-            <!-- 2. 音频输入设备选择 (双通道物理隔离) -->
-            <div class="drawer-section">
-                <div class="drawer-section-title">🎙️ 音频输入设备绑定 (双通道物理隔离)</div>
-                <div class="drawer-field">
-                    <div class="drawer-label">Channel A (麦克风 / 中方发言)：</div>
-                    <select id="drawer-device-a" class="drawer-select">
-                        <option value="">正在检测音频设备...</option>
-                    </select>
-                    <div class="drawer-note">中方发言通道，将麦克风拾音实时直传并翻译为纯正英文。</div>
-                </div>
-                <div class="drawer-field">
-                    <div class="drawer-label">Channel B (会议内录 / 外宾发言)：</div>
-                    <select id="drawer-device-b" class="drawer-select">
-                        <option value="">正在检测音频设备...</option>
-                    </select>
-                    <div style="margin-top: 4px;">
-                        <span id="drawer-loopback-badge" class="loopback-badge badge-warning">自检中...</span>
+                    <div class="quota-track-wrapper">
+                        <div class="quota-track">
+                            <div id="quota-bar-fill" class="quota-bar-fill optimal" style="width: 0%;"></div>
+                            <div class="quota-marker-900" title="安全推送阈值 900 词 (10% 安全余量)">
+                                <span class="quota-marker-line"></span>
+                                <span class="quota-marker-label">900 词安全线</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="drawer-note">外宾发言通道，采集会议回环音频并翻译为中文。未配置虚拟声卡时安全静默，绝不盗用麦克风。</div>
+                    <div class="quota-footer-row">
+                        <div class="quota-engine-badge">
+                            <span>🖥️ 本地万词引擎已挂载：</span>
+                            <span id="quota-local-count" class="quota-local-num">0</span>
+                            <span> 词 · 匹配耗时 ≤0.15ms · 额外消耗 0 Token</span>
+                        </div>
+                    </div>
+                    <div id="quota-capped-alert" class="quota-capped-banner" style="display: none;">
+                        ⚠️ 已触发智能截断 (Smart Capping)：热词总数超过 900 词安全线，云端仅推送前 900 词 (优先保证临时人名与基础应急库)，100% 杜绝 API 报错断链；本地万词引擎全量匹配生效。
+                    </div>
+                </div>
+
+                <!-- Block 2: 分类标签勾选区 -->
+                <div class="drawer-section">
+                    <div class="drawer-section-title">🏷️ 多维分类标签热词银行 (按需勾选 · 即时热生效)</div>
+                    <div class="tags-group-container">
+                        <div class="tags-group-title">🟢 主力分类标签 (高频 / 常见)</div>
+                        <div id="tags-grid-high" class="tags-grid">
+                            <!-- 动态通过 JS 使用 textContent 渲染 -->
+                        </div>
+                    </div>
+                    <div class="tags-group-container" style="margin-top: 10px;">
+                        <div class="tags-group-title">🔵 领域扩展标签 (生僻 / 不常见 · 可达万级)</div>
+                        <div id="tags-grid-rare" class="tags-grid">
+                            <!-- 动态通过 JS 使用 textContent 渲染 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Block 3: 单条快速录入与批量粘贴导入 -->
+                <div class="drawer-section">
+                    <div class="drawer-section-title">
+                        <span>⚡ 热词快速录入与批量导入</span>
+                        <div class="entry-mode-switch">
+                            <button type="button" id="btn-mode-single" class="btn-mode-toggle active" onclick="switchEntryMode('single')">单条快速录入</button>
+                            <button type="button" id="btn-mode-batch" class="btn-mode-toggle" onclick="switchEntryMode('batch')">批量粘贴导入</button>
+                        </div>
+                    </div>
+
+                    <!-- 单条录入面板 -->
+                    <div id="entry-panel-single" class="entry-panel">
+                        <div class="form-row-compact">
+                            <div class="form-field-half">
+                                <label class="drawer-field-label">映射方向：</label>
+                                <select id="term-direction" class="drawer-select">
+                                    <option value="terms_zh_to_en">中 ➔ 英 (zh_to_en)</option>
+                                    <option value="terms_en_to_zh">英 ➔ 中 (en_to_zh)</option>
+                                    <option value="asr_fixes">ASR 语音修正 (asr_fixes)</option>
+                                </select>
+                            </div>
+                            <div class="form-field-half">
+                                <label class="drawer-field-label">存储作用域：</label>
+                                <select id="term-scope" class="drawer-select">
+                                    <option value="session">⏱️ 本场临时词 (会后可清空/转存)</option>
+                                    <option value="permanent">📌 永久词库 (持久保存写入磁盘)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row-compact" style="margin-top: 8px;">
+                            <div class="form-field-half">
+                                <input type="text" id="term-source" class="drawer-input" placeholder="原词 (如: 萨姆·奥尔特曼 或 落拉)" oninput="triggerConflictProbe()">
+                            </div>
+                            <div class="form-field-half">
+                                <input type="text" id="term-target" class="drawer-input" placeholder="目标词 (如: Sam Altman 或 LoRA)" oninput="triggerConflictProbe()">
+                            </div>
+                        </div>
+                        <!-- 实时冲突/覆盖检测探针 (AC-G12) -->
+                        <div id="term-conflict-probe" class="conflict-probe-banner" style="display: none; margin-top: 8px; padding: 6px 12px; border-radius: 6px; font-size: 12px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(15, 23, 42, 0.6); align-items: center; gap: 8px;">
+                            <span id="term-probe-badge" class="probe-badge" style="font-weight: 600; font-size: 11px; padding: 2px 6px; border-radius: 4px;"></span>
+                            <span id="term-probe-text" class="probe-text" style="color: #cbd5e1; flex: 1;"></span>
+                        </div>
+                        <div style="margin-top: 8px; display: flex; justify-content: flex-end;">
+                            <button type="button" id="btn-add-term" class="btn-primary-action" onclick="submitSingleTerm()">➕ 快速添加</button>
+                        </div>
+                    </div>
+
+                    <!-- 批量导入面板 -->
+                    <div id="entry-panel-batch" class="entry-panel" style="display: none;">
+                        <div class="form-row-compact">
+                            <div class="form-field-half">
+                                <label class="drawer-field-label">默认映射方向：</label>
+                                <select id="batch-direction" class="drawer-select">
+                                    <option value="terms_zh_to_en">中 ➔ 英 (zh_to_en)</option>
+                                    <option value="terms_en_to_zh">英 ➔ 中 (en_to_zh)</option>
+                                    <option value="asr_fixes">ASR 语音修正 (asr_fixes)</option>
+                                </select>
+                            </div>
+                            <div class="form-field-half">
+                                <label class="drawer-field-label">存储作用域：</label>
+                                <select id="batch-scope" class="drawer-select">
+                                    <option value="session">⏱️ 本场临时词 (推荐用于嘉宾名单)</option>
+                                    <option value="permanent">📌 永久词库 (直接持久化)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <textarea id="batch-import-text" class="drawer-textarea" rows="4" placeholder="支持多行粘贴，分隔符支持 =、->、=>、:、：&#10;示例：&#10;张伟 = Wei Zhang&#10;李娜 -> Na Li&#10;黄仁勋 => Jensen Huang&#10;落拉 : LoRA" oninput="onBatchTextChange()"></textarea>
+                        </div>
+                        <div class="batch-footer-row">
+                            <span id="batch-parsed-count" class="batch-parsed-hint">已识别有效词条：0 条</span>
+                            <button type="button" id="btn-batch-import" class="btn-primary-action" onclick="submitBatchTerms()">📥 批量快速导入</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Block 4: 词条明细浏览、实时搜索与会后处置 -->
+                <div class="drawer-section">
+                    <div class="drawer-section-title">
+                        <span>📖 会议热词明细浏览与生命周期处置</span>
+                    </div>
+                    <div class="terms-filter-bar">
+                        <div class="terms-scope-filters">
+                            <button type="button" id="filter-scope-all" class="scope-filter-btn active" onclick="setScopeFilter('all')">
+                                <span>全部</span> <span id="count-scope-all" class="filter-count-badge">0</span>
+                            </button>
+                            <button type="button" id="filter-scope-session" class="scope-filter-btn" onclick="setScopeFilter('session')">
+                                <span>⏱️ 临时词</span> <span id="count-scope-session" class="filter-count-badge">0</span>
+                            </button>
+                            <button type="button" id="filter-scope-permanent" class="scope-filter-btn" onclick="setScopeFilter('permanent')">
+                                <span>📌 永久词</span> <span id="count-scope-permanent" class="filter-count-badge">0</span>
+                            </button>
+                        </div>
+                        <div class="search-input-wrapper">
+                            <input type="text" id="terms-search-input" class="drawer-input search-input" placeholder="🔍 实时搜索原词或标准译词..." oninput="onSearchTermsChange()">
+                        </div>
+                    </div>
+
+                    <div id="terms-list-container" class="terms-list-container">
+                        <div class="terms-empty-hint">正在加载词条列表...</div>
+                    </div>
+
+                    <!-- 静态模板确保 btn-delete-term DOM 查询可用 -->
+                    <template id="tmpl-term-item">
+                        <div class="term-item-row">
+                            <button type="button" id="btn-delete-term" class="btn-delete-term" title="删除词条">✕</button>
+                        </div>
+                    </template>
+
+                    <div class="post-meeting-actions">
+                        <div class="actions-label">🏁 会后全生命周期处置：</div>
+                        <div class="actions-grid">
+                            <button type="button" id="btn-clear-session" class="btn-action-danger" onclick="clearSessionTerms()" title="一键清空本次会议临时人名，0 磁盘残留">
+                                🧹 一键清空本场临时词
+                            </button>
+                            <button type="button" id="btn-promote-session" class="btn-action-promote" onclick="promoteSessionTerms()" title="将本场临时词合并持久化写入 glossary.json，永久复用">
+                                💾 一键转存为永久词库
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Block 5: 已激活热词实时同步明细表 (AC-G11) -->
+                <div class="drawer-section" id="active-terms-section">
+                    <div class="drawer-section-title">
+                        <span>📊 已激活热词实时同步明细表</span>
+                        <span id="active-terms-total-badge" class="sync-count-chip" style="font-size: 11px; background: rgba(59, 130, 246, 0.2); color: #60a5fa; padding: 2px 8px; border-radius: 10px; border: 1px solid rgba(96, 165, 250, 0.3);">共 0 词</span>
+                    </div>
+                    <div class="active-terms-controls" style="margin-top: 8px;">
+                        <div class="form-row-compact">
+                            <div class="form-field-half">
+                                <label class="drawer-field-label">分类筛选：</label>
+                                <select id="active-terms-filter-scope" class="drawer-select" onchange="onActiveTermsFilterChange()">
+                                    <option value="all">全部激活词</option>
+                                    <option value="base">基础常驻 (00_base_emergency)</option>
+                                    <option value="bank">当前勾选包</option>
+                                    <option value="session">本场临时VIP</option>
+                                    <option value="permanent">永久自定义</option>
+                                </select>
+                            </div>
+                            <div class="form-field-half">
+                                <label class="drawer-field-label">双向搜索：</label>
+                                <input type="text" id="active-terms-search" class="drawer-input search-input" placeholder="🔍 实时搜索中文字或英文字..." oninput="onActiveTermsSearchInput()">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="active-terms-table-container" style="max-height: 260px; overflow-y: auto; margin-top: 8px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; background: rgba(15, 23, 42, 0.4);">
+                        <table id="active-terms-table" class="active-terms-table" style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
+                            <thead style="position: sticky; top: 0; background: rgba(30, 41, 59, 0.95); z-index: 2; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                                <tr>
+                                    <th style="padding: 6px 10px; width: 30%; color: #94a3b8;">中文字</th>
+                                    <th style="padding: 6px 10px; width: 34%; color: #94a3b8;">英文字</th>
+                                    <th style="padding: 6px 10px; width: 22%; color: #94a3b8;">来源标签名</th>
+                                    <th style="padding: 6px 10px; width: 14%; text-align: center; color: #94a3b8;">优先级</th>
+                                </tr>
+                            </thead>
+                            <tbody id="active-terms-tbody">
+                                <!-- 动态由 JavaScript 使用 textContent 渲染 -->
+                            </tbody>
+                        </table>
+                        <div id="active-terms-empty" class="terms-empty-hint" style="display: none; padding: 16px; text-align: center; color: #64748b; font-size: 12px;">无匹配激活词条</div>
+                    </div>
                 </div>
             </div>
 
-            <!-- 3. 同传引擎模式选择 -->
-            <div class="drawer-section">
-                <div class="drawer-section-title">⚡ 实时同传引擎模型</div>
-                <div class="drawer-field">
-                    <div class="drawer-label">同传模型选择：</div>
-                    <select id="drawer-engine" class="drawer-select">
-                        <option value="gummy-realtime-v1">⚡ gummy-realtime-v1 (50ms 零拷贝 · 延迟 <450ms · 推荐)</option>
-                        <option value="qwen3.8-livetranslate-flash-realtime">🧠 qwen3.8-livetranslate-flash-realtime (全双工大模型 · 60语种热词支持)</option>
-                    </select>
-                    <div class="drawer-note">Gummy-v1 直连 C 扩展推流，单帧切片 50ms (800采样点)，极致低延迟。</div>
+            <!-- Tab Panel 2: 系统基础配置 (100% 保持 15 大门禁 ID 与字符串纯正) -->
+            <div id="panel-system" class="drawer-tab-panel" role="tabpanel">
+                <!-- 1. API Key 配置 -->
+                <div class="drawer-section">
+                    <div class="drawer-section-title">🔑 阿里云百炼 DashScope API 密钥</div>
+                    <div class="drawer-field">
+                        <div class="drawer-label">当前生效 Key：</div>
+                        <span id="drawer-masked-key" class="masked-key-display">正在获取...</span>
+                    </div>
+                    <div class="drawer-field">
+                        <div class="drawer-label">更新 API Key：</div>
+                        <div class="drawer-input-row">
+                            <input type="password" id="drawer-api-key" class="drawer-input" placeholder="在此输入新 API Key (sk-...)">
+                            <button type="button" id="btn-toggle-key" class="drawer-input-btn" onclick="toggleApiKeyVisibility()" title="显示/隐藏明文">👁️</button>
+                        </div>
+                        <div class="drawer-note">留空保持当前 Key 不变。支持通义千问与百炼同传服务。</div>
+                    </div>
                 </div>
-            </div>
 
-            <!-- 4. HUD 悬浮窗远程管控 -->
-            <div class="drawer-section">
-                <div class="drawer-section-title">🍏 悬浮窗 HUD 远程管控</div>
-                <div class="drawer-actions-grid">
-                    <button type="button" id="drawer-btn-unlock-hud" class="btn-drawer-action" onclick="unlockHudRemote()">🔓 远程解除穿透锁定</button>
-                    <button type="button" id="drawer-btn-stealth-hud" class="btn-drawer-action" onclick="toggleStealthRemote()">👁️ 切换投屏隐身</button>
+                <!-- 2. 音频输入设备选择 (双通道物理隔离) -->
+                <div class="drawer-section">
+                    <div class="drawer-section-title">🎙️ 音频输入设备绑定 (双通道物理隔离)</div>
+                    <div class="drawer-field">
+                        <div class="drawer-label">Channel A (麦克风 / 中方发言)：</div>
+                        <select id="drawer-device-a" class="drawer-select">
+                            <option value="">正在检测音频设备...</option>
+                        </select>
+                        <div class="drawer-note">中方发言通道，将麦克风拾音实时直传并翻译为纯正英文。</div>
+                    </div>
+                    <div class="drawer-field">
+                        <div class="drawer-label">Channel B (会议内录 / 外宾发言)：</div>
+                        <select id="drawer-device-b" class="drawer-select">
+                            <option value="">正在检测音频设备...</option>
+                        </select>
+                        <div style="margin-top: 4px;">
+                            <span id="drawer-loopback-badge" class="loopback-badge badge-warning">自检中...</span>
+                        </div>
+                        <div class="drawer-note">外宾发言通道，采集会议回环音频并翻译为中文。未配置虚拟声卡时安全静默，绝不盗用麦克风。</div>
+                    </div>
                 </div>
-                <div class="drawer-note">当悬浮窗锁定鼠标穿透后无法点击时，可在此一键解除锁定；开启隐身后桌面共享防捕获。</div>
+
+                <!-- 3. 同传引擎模式选择 -->
+                <div class="drawer-section">
+                    <div class="drawer-section-title">⚡ 实时同传引擎模型</div>
+                    <div class="drawer-field">
+                        <div class="drawer-label">同传模型选择：</div>
+                        <select id="drawer-engine" class="drawer-select">
+                            <option value="gummy-realtime-v1">⚡ gummy-realtime-v1 (50ms 零拷贝 · 延迟 <450ms · 推荐)</option>
+                            <option value="qwen3.8-livetranslate-flash-realtime">🧠 qwen3.8-livetranslate-flash-realtime (全双工大模型 · 60语种热词支持)</option>
+                        </select>
+                        <div class="drawer-note">Gummy-v1 直连 C 扩展推流，单帧切片 50ms (800采样点)，极致低延迟。</div>
+                    </div>
+                </div>
+
+                <!-- 4. HUD 悬浮窗远程管控 -->
+                <div class="drawer-section">
+                    <div class="drawer-section-title">🍏 悬浮窗 HUD 远程管控</div>
+                    <div class="drawer-actions-grid">
+                        <button type="button" id="drawer-btn-unlock-hud" class="btn-drawer-action" onclick="unlockHudRemote()">🔓 远程解除穿透锁定</button>
+                        <button type="button" id="drawer-btn-stealth-hud" class="btn-drawer-action" onclick="toggleStealthRemote()">👁️ 切换投屏隐身</button>
+                    </div>
+                    <div class="drawer-note">当悬浮窗锁定鼠标穿透后无法点击时，可在此一键解除锁定；开启隐身后桌面共享防捕获。</div>
+                </div>
             </div>
         </div>
 
-        <div class="drawer-footer">
+        <div class="drawer-footer" id="drawer-system-footer">
             <button type="button" id="drawer-save-btn" class="btn-drawer-save" onclick="saveDrawerConfig()">💾 保存配置并即时热生效</button>
         </div>
     </aside>
@@ -1156,12 +1926,48 @@
         // ------------------------------------------------------------------
         // 系统全局配置抽屉交互逻辑
         // ------------------------------------------------------------------
-        function openConfigDrawer() {
+        function switchDrawerTab(tabName) {
+            const tabGlossary = document.getElementById("tab-btn-glossary");
+            const tabSystem = document.getElementById("tab-btn-system");
+            const panelGlossary = document.getElementById("panel-glossary");
+            const panelSystem = document.getElementById("panel-system");
+            const systemFooter = document.getElementById("drawer-system-footer");
+
+            if (tabName === "glossary") {
+                if (tabGlossary) {
+                    tabGlossary.classList.add("active");
+                    tabGlossary.setAttribute("aria-selected", "true");
+                }
+                if (tabSystem) {
+                    tabSystem.classList.remove("active");
+                    tabSystem.setAttribute("aria-selected", "false");
+                }
+                if (panelGlossary) panelGlossary.classList.add("active");
+                if (panelSystem) panelSystem.classList.remove("active");
+                if (systemFooter) systemFooter.style.display = "none";
+                loadGlossaryData();
+            } else {
+                if (tabSystem) {
+                    tabSystem.classList.add("active");
+                    tabSystem.setAttribute("aria-selected", "true");
+                }
+                if (tabGlossary) {
+                    tabGlossary.classList.remove("active");
+                    tabGlossary.setAttribute("aria-selected", "false");
+                }
+                if (panelSystem) panelSystem.classList.add("active");
+                if (panelGlossary) panelGlossary.classList.remove("active");
+                if (systemFooter) systemFooter.style.display = "block";
+                loadDrawerConfig();
+            }
+        }
+
+        function openConfigDrawer(tabName) {
             const drawer = document.getElementById("config-drawer");
             const backdrop = document.getElementById("drawer-backdrop");
             if (drawer) drawer.classList.add("active");
             if (backdrop) backdrop.classList.add("active");
-            loadDrawerConfig();
+            switchDrawerTab(tabName || "system");
         }
 
         function closeConfigDrawer() {
@@ -1363,10 +2169,763 @@
             }
         }
 
-        // 页面初始化：检测 URL 参数 ?drawer=open 或 #drawer 自动打开抽屉
+        // ------------------------------------------------------------------
+        // 会议热词工作台交互逻辑 (Block 1 ~ Block 4)
+        // 严格遵循 DOM 规范：100% textContent / createTextNode，零违规属性
+        // ------------------------------------------------------------------
+        let glossaryState = {
+            quota: null,
+            categories: [],
+            session_terms: {},
+            permanent_terms: {},
+            activeTerms: [],
+            activeScopeFilter: "all",
+            searchQuery: "",
+            entryMode: "single"
+        };
+
+        // 加载热词工作台全量数据 (GET /api/glossary)
+        async function loadGlossaryData() {
+            try {
+                const res = await fetch("/api/glossary");
+                if (!res.ok) return;
+                const data = await res.json();
+
+                glossaryState.quota = data.quota || {};
+                glossaryState.categories = data.categories || (data.quota ? data.quota.categories : []) || [];
+                glossaryState.session_terms = data.session_terms || {};
+                glossaryState.permanent_terms = data.data || data.glossary || {};
+
+                updateQuotaDisplay(glossaryState.quota);
+                renderCategoryTags(glossaryState.categories);
+                renderTermsList();
+                await loadActiveTermsTable();
+            } catch (err) {
+                console.error("加载会议热词数据失败:", err);
+            }
+        }
+
+        // Block 1: 渲染云端 1,000 词容量水位仪与本地万词引擎状态
+        function updateQuotaDisplay(quota) {
+            if (!quota) return;
+            const used = quota.cloud_quota_used !== undefined ? quota.cloud_quota_used : (quota.cloud_hotwords_count || 0);
+            const limit = quota.cloud_quota_limit || 1000;
+            const health = quota.health_level || (used <= 750 ? "optimal" : (used <= 900 ? "warning" : "capped"));
+            const localCount = quota.local_automaton_terms || quota.total_local_terms || 0;
+            const isCapped = Boolean(quota.smart_capped || health === "capped");
+
+            const cloudCountElem = document.getElementById("quota-cloud-count");
+            if (cloudCountElem) {
+                cloudCountElem.textContent = String(used);
+            }
+
+            const chipLoadElem = document.getElementById("chip-cloud-load");
+            if (chipLoadElem) {
+                chipLoadElem.textContent = `${used}/${limit}`;
+            }
+
+            const localCountElem = document.getElementById("quota-local-count");
+            if (localCountElem) {
+                localCountElem.textContent = localCount.toLocaleString();
+            }
+
+            const badgeElem = document.getElementById("quota-health-badge");
+            if (badgeElem) {
+                badgeElem.className = `quota-health-badge health-${health}`;
+                if (health === "optimal") {
+                    badgeElem.textContent = "健康 (Optimal)";
+                } else if (health === "warning") {
+                    badgeElem.textContent = "预警 (Warning)";
+                } else {
+                    badgeElem.textContent = "截断 (Capped)";
+                }
+            }
+
+            const barFill = document.getElementById("quota-bar-fill");
+            if (barFill) {
+                const pct = Math.min(100, Math.max(0, (used / limit) * 100));
+                barFill.style.width = `${pct}%`;
+                barFill.className = `quota-bar-fill ${health}`;
+            }
+
+            const cappedAlert = document.getElementById("quota-capped-alert");
+            if (cappedAlert) {
+                cappedAlert.style.display = isCapped ? "block" : "none";
+            }
+        }
+
+        // Block 2: 动态渲染多维分类标签勾选区
+        function renderCategoryTags(categories) {
+            const gridHigh = document.getElementById("tags-grid-high");
+            const gridRare = document.getElementById("tags-grid-rare");
+            if (!gridHigh || !gridRare) return;
+
+            gridHigh.innerHTML = "";
+            gridRare.innerHTML = "";
+
+            (categories || []).forEach(pack => {
+                const isHigh = (pack.tier === "emergency" || pack.tier === "high_frequency" || (pack.priority && pack.priority <= 2));
+                const targetGrid = isHigh ? gridHigh : gridRare;
+
+                const label = document.createElement("label");
+                label.className = `tag-pill-card ${pack.enabled ? "active" : ""} ${pack.locked ? "locked" : ""}`;
+                if (pack.description) {
+                    label.title = pack.description;
+                }
+
+                const infoDiv = document.createElement("div");
+                infoDiv.className = "tag-info";
+
+                const iconSpan = document.createElement("span");
+                iconSpan.className = "tag-icon";
+                iconSpan.textContent = pack.icon || "📦";
+
+                const nameSpan = document.createElement("span");
+                nameSpan.className = "tag-name";
+                nameSpan.textContent = pack.name || pack.id;
+
+                infoDiv.appendChild(iconSpan);
+                infoDiv.appendChild(nameSpan);
+
+                const metaDiv = document.createElement("div");
+                metaDiv.className = "tag-meta";
+
+                const countSpan = document.createElement("span");
+                countSpan.className = "tag-count-chip";
+                countSpan.textContent = `${pack.terms_count || 0} 词`;
+                metaDiv.appendChild(countSpan);
+
+                if (pack.locked) {
+                    const lockBadge = document.createElement("span");
+                    lockBadge.className = "tag-locked-badge";
+                    lockBadge.textContent = "🔒 锁定";
+                    metaDiv.appendChild(lockBadge);
+                } else {
+                    const chk = document.createElement("input");
+                    chk.type = "checkbox";
+                    chk.checked = Boolean(pack.enabled);
+                    chk.setAttribute("data-pack-id", pack.id);
+                    chk.onchange = (e) => {
+                        e.stopPropagation();
+                        toggleCategoryPack(pack.id, chk.checked);
+                    };
+                    metaDiv.appendChild(chk);
+                }
+
+                label.appendChild(infoDiv);
+                label.appendChild(metaDiv);
+                targetGrid.appendChild(label);
+            });
+        }
+
+        // 异步切换词包勾选状态 (POST /api/glossary/toggle_pack)
+        async function toggleCategoryPack(packId, enabled) {
+            try {
+                const res = await fetch("/api/glossary/toggle_pack", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ pack_id: packId, enabled: enabled })
+                });
+                const result = await res.json();
+                if (res.ok && result.status === "ok") {
+                    showToast(`词包 [${packId}] 状态已即时更新并同步！`);
+                    await loadGlossaryData();
+                } else {
+                    showToast("⚠️ 词包切换失败: " + (result.message || "未知原因"));
+                    await loadGlossaryData();
+                }
+            } catch (err) {
+                showToast("⚠️ 网络请求异常: " + err.message);
+            }
+        }
+
+        // Block 3: 快速录入模式切换 (单条 vs 批量)
+        function switchEntryMode(mode) {
+            glossaryState.entryMode = mode;
+            const btnSingle = document.getElementById("btn-mode-single");
+            const btnBatch = document.getElementById("btn-mode-batch");
+            const panelSingle = document.getElementById("entry-panel-single");
+            const panelBatch = document.getElementById("entry-panel-batch");
+
+            if (mode === "single") {
+                if (btnSingle) btnSingle.classList.add("active");
+                if (btnBatch) btnBatch.classList.remove("active");
+                if (panelSingle) panelSingle.style.display = "block";
+                if (panelBatch) panelBatch.style.display = "none";
+            } else {
+                if (btnBatch) btnBatch.classList.add("active");
+                if (btnSingle) btnSingle.classList.remove("active");
+                if (panelBatch) panelBatch.style.display = "block";
+                if (panelSingle) panelSingle.style.display = "none";
+            }
+        }
+
+        // 单条快速录入提交 (POST /api/glossary)
+        async function submitSingleTerm() {
+            const srcInput = document.getElementById("term-source");
+            const tgtInput = document.getElementById("term-target");
+            const dirSelect = document.getElementById("term-direction");
+            const scopeSelect = document.getElementById("term-scope");
+            const addBtn = document.getElementById("btn-add-term");
+
+            if (!srcInput || !tgtInput) return;
+            const src = srcInput.value.trim();
+            const tgt = tgtInput.value.trim();
+            const dir = dirSelect ? dirSelect.value : "terms_zh_to_en";
+            const isSession = scopeSelect ? (scopeSelect.value === "session") : true;
+
+            if (!src || !tgt) {
+                showToast("⚠️ 请完整填写原词与目标标准词！");
+                return;
+            }
+
+            if (addBtn) addBtn.disabled = true;
+            try {
+                const res = await fetch("/api/glossary", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        source: src,
+                        target: tgt,
+                        category: dir,
+                        is_session: isSession
+                    })
+                });
+                const result = await res.json();
+                if (res.ok && result.status === "ok") {
+                    srcInput.value = "";
+                    tgtInput.value = "";
+                    const probeContainer = document.getElementById("term-conflict-probe");
+                    if (probeContainer) probeContainer.style.display = "none";
+                    showToast(`✅ 已成功添加 [${src} ➔ ${tgt}] (${isSession ? "临时词" : "永久词"})！`);
+                    await loadGlossaryData();
+                } else {
+                    showToast("⚠️ 添加词条失败: " + (result.message || "未知原因"));
+                }
+            } catch (err) {
+                showToast("⚠️ 添加词条网络异常: " + err.message);
+            } finally {
+                if (addBtn) addBtn.disabled = false;
+            }
+        }
+
+        // 批量粘贴输入事件：实时计算识别有效词条数
+        function onBatchTextChange() {
+            const textarea = document.getElementById("batch-import-text");
+            const countSpan = document.getElementById("batch-parsed-count");
+            if (!textarea || !countSpan) return;
+
+            const lines = textarea.value.split("\n");
+            let validCount = 0;
+            const sepRegex = /(=>|->|=|:|：)/;
+            for (const rawLine of lines) {
+                const line = rawLine.trim();
+                if (!line || line.startsWith("#") || line.startsWith("//")) continue;
+                if (sepRegex.test(line)) {
+                    const parts = line.split(sepRegex);
+                    if (parts.length >= 3 && parts[0].trim() && parts[2].trim()) {
+                        validCount++;
+                    }
+                }
+            }
+            countSpan.textContent = `已识别有效词条：${validCount} 条`;
+        }
+
+        // 批量粘贴导入提交 (POST /api/glossary)
+        async function submitBatchTerms() {
+            const textarea = document.getElementById("batch-import-text");
+            const dirSelect = document.getElementById("batch-direction");
+            const scopeSelect = document.getElementById("batch-scope");
+            const importBtn = document.getElementById("btn-batch-import");
+
+            if (!textarea) return;
+            const text = textarea.value.trim();
+            if (!text) {
+                showToast("⚠️ 请先在文本框中粘贴多行热词！");
+                return;
+            }
+
+            const dir = dirSelect ? dirSelect.value : "terms_zh_to_en";
+            const isSession = scopeSelect ? (scopeSelect.value === "session") : true;
+
+            if (importBtn) importBtn.disabled = true;
+            try {
+                const res = await fetch("/api/glossary", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        batch_text: text,
+                        category: dir,
+                        is_session: isSession
+                    })
+                });
+                const result = await res.json();
+                if (res.ok && result.status === "ok") {
+                    const count = (result.details && result.details.imported_count !== undefined)
+                        ? result.details.imported_count
+                        : "若干";
+                    textarea.value = "";
+                    onBatchTextChange();
+                    showToast(`✅ 批量导入成功，共解析挂载 ${count} 条词汇！`);
+                    await loadGlossaryData();
+                } else {
+                    showToast("⚠️ 批量导入失败: " + (result.message || "未知原因"));
+                }
+            } catch (err) {
+                showToast("⚠️ 批量导入网络异常: " + err.message);
+            } finally {
+                if (importBtn) importBtn.disabled = false;
+            }
+        }
+
+        // Block 4: 作用域过滤器切换
+        function setScopeFilter(scope) {
+            glossaryState.activeScopeFilter = scope;
+            const btnAll = document.getElementById("filter-scope-all");
+            const btnSession = document.getElementById("filter-scope-session");
+            const btnPerm = document.getElementById("filter-scope-permanent");
+
+            if (btnAll) btnAll.classList.toggle("active", scope === "all");
+            if (btnSession) btnSession.classList.toggle("active", scope === "session");
+            if (btnPerm) btnPerm.classList.toggle("active", scope === "permanent");
+
+            renderTermsList();
+        }
+
+        // 实时搜索热词原词或译名
+        function onSearchTermsChange() {
+            const input = document.getElementById("terms-search-input");
+            if (input) {
+                glossaryState.searchQuery = input.value.trim().toLowerCase();
+                renderTermsList();
+            }
+        }
+
+        // 渲染词条列表
+        function renderTermsList() {
+            const container = document.getElementById("terms-list-container");
+            if (!container) return;
+
+            const sessionData = glossaryState.session_terms || {};
+            const permData = glossaryState.permanent_terms || {};
+
+            const allItems = [];
+
+            // 1. Session 临时词
+            ["terms_zh_to_en", "terms_en_to_zh", "asr_fixes"].forEach(cat => {
+                const dict = sessionData[cat] || {};
+                const typeLabel = cat === "terms_zh_to_en" ? "中➔英" : (cat === "terms_en_to_zh" ? "英➔中" : "ASR");
+                for (const [src, tgt] of Object.entries(dict)) {
+                    allItems.push({
+                        scope: "session",
+                        scopeLabel: "⏱️ 临时",
+                        category: cat,
+                        typeLabel: typeLabel,
+                        source: src,
+                        target: String(tgt)
+                    });
+                }
+            });
+
+            // 2. Permanent 永久词
+            ["terms_zh_to_en", "terms_en_to_zh", "asr_fixes"].forEach(cat => {
+                const dict = permData[cat] || {};
+                const typeLabel = cat === "terms_zh_to_en" ? "中➔英" : (cat === "terms_en_to_zh" ? "英➔中" : "ASR");
+                for (const [src, tgt] of Object.entries(dict)) {
+                    allItems.push({
+                        scope: "permanent",
+                        scopeLabel: "📌 永久",
+                        category: cat,
+                        typeLabel: typeLabel,
+                        source: src,
+                        target: String(tgt)
+                    });
+                }
+            });
+
+            // 统计计数
+            const totalSession = allItems.filter(i => i.scope === "session").length;
+            const totalPerm = allItems.filter(i => i.scope === "permanent").length;
+            const totalAll = allItems.length;
+
+            const countAllElem = document.getElementById("count-scope-all");
+            const countSessionElem = document.getElementById("count-scope-session");
+            const countPermElem = document.getElementById("count-scope-permanent");
+
+            if (countAllElem) countAllElem.textContent = String(totalAll);
+            if (countSessionElem) countSessionElem.textContent = String(totalSession);
+            if (countPermElem) countPermElem.textContent = String(totalPerm);
+
+            // 过滤作用域与搜索词
+            let filtered = allItems;
+            if (glossaryState.activeScopeFilter === "session") {
+                filtered = filtered.filter(i => i.scope === "session");
+            } else if (glossaryState.activeScopeFilter === "permanent") {
+                filtered = filtered.filter(i => i.scope === "permanent");
+            }
+
+            if (glossaryState.searchQuery) {
+                const q = glossaryState.searchQuery;
+                filtered = filtered.filter(i => i.source.toLowerCase().includes(q) || i.target.toLowerCase().includes(q));
+            }
+
+            container.innerHTML = "";
+
+            if (filtered.length === 0) {
+                const emptyDiv = document.createElement("div");
+                emptyDiv.className = "terms-empty-hint";
+                emptyDiv.textContent = glossaryState.searchQuery ? "无匹配的热词结果" : "当前暂无录入的热词";
+                container.appendChild(emptyDiv);
+                return;
+            }
+
+            filtered.forEach((item, index) => {
+                const row = document.createElement("div");
+                row.className = "term-item-row";
+
+                const mainDiv = document.createElement("div");
+                mainDiv.className = "term-main";
+
+                const scopeBadge = document.createElement("span");
+                scopeBadge.className = item.scope === "session" ? "term-badge-session" : "term-badge-permanent";
+                scopeBadge.textContent = item.scopeLabel;
+
+                const typeBadge = document.createElement("span");
+                typeBadge.className = "term-badge-type";
+                typeBadge.textContent = item.typeLabel;
+
+                const pairDiv = document.createElement("div");
+                pairDiv.className = "term-pair";
+
+                const srcSpan = document.createElement("span");
+                srcSpan.className = "term-source-text";
+                srcSpan.textContent = item.source;
+
+                const arrowSpan = document.createElement("span");
+                arrowSpan.className = "term-arrow";
+                arrowSpan.textContent = "➔";
+
+                const tgtSpan = document.createElement("span");
+                tgtSpan.className = "term-target-text";
+                tgtSpan.textContent = item.target;
+
+                pairDiv.appendChild(srcSpan);
+                pairDiv.appendChild(arrowSpan);
+                pairDiv.appendChild(tgtSpan);
+
+                mainDiv.appendChild(scopeBadge);
+                mainDiv.appendChild(typeBadge);
+                mainDiv.appendChild(pairDiv);
+
+                const deleteBtn = document.createElement("button");
+                deleteBtn.type = "button";
+                deleteBtn.className = "btn-delete-term";
+                if (index === 0) {
+                    deleteBtn.id = "btn-delete-term";
+                }
+                deleteBtn.textContent = "✕";
+                deleteBtn.title = `删除 [${item.source}]`;
+                deleteBtn.onclick = () => deleteTerm(item.scope, item.category, item.source);
+
+                row.appendChild(mainDiv);
+                row.appendChild(deleteBtn);
+                container.appendChild(row);
+            });
+        }
+
+        // 删除指定词条 (POST /api/glossary/delete)
+        async function deleteTerm(scope, category, source) {
+            try {
+                const res = await fetch("/api/glossary/delete", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        key: source,
+                        category: category,
+                        is_session: (scope === "session")
+                    })
+                });
+                const result = await res.json();
+                if (res.ok && result.status === "ok") {
+                    showToast(`🗑️ 已成功删除词条 [${source}]！`);
+                    await loadGlossaryData();
+                } else {
+                    showToast("⚠️ 删除词条失败: " + (result.message || "未知原因"));
+                }
+            } catch (err) {
+                showToast("⚠️ 删除网络请求异常: " + err.message);
+            }
+        }
+
+        // 一键清空本场临时词 (POST /api/glossary/session/clear)
+        async function clearSessionTerms() {
+            const btn = document.getElementById("btn-clear-session");
+            if (btn) btn.disabled = true;
+            try {
+                const res = await fetch("/api/glossary/session/clear", { method: "POST" });
+                const result = await res.json();
+                if (res.ok && result.status === "ok") {
+                    showToast(`🧹 本场临时词已清空 (共清理 ${result.cleared_count || 0} 条，0 磁盘残留)！`);
+                    await loadGlossaryData();
+                } else {
+                    showToast("⚠️ 清空临时词失败: " + (result.message || "未知原因"));
+                }
+            } catch (err) {
+                showToast("⚠️ 清空操作网络异常: " + err.message);
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        // 一键转存为永久词库 (POST /api/glossary/session/promote)
+        async function promoteSessionTerms() {
+            const btn = document.getElementById("btn-promote-session");
+            if (btn) btn.disabled = true;
+            try {
+                const res = await fetch("/api/glossary/session/promote", { method: "POST" });
+                const result = await res.json();
+                if (res.ok && result.status === "ok") {
+                    showToast(`💾 本场临时词已成功转存为永久词库 (共转存 ${result.promoted_count || 0} 条)！`);
+                    await loadGlossaryData();
+                } else {
+                    showToast("⚠️ 转存永久词库失败: " + (result.message || "未知原因"));
+                }
+            } catch (err) {
+                showToast("⚠️ 转存操作网络异常: " + err.message);
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Block 5: 已激活热词实时同步明细表 (AC-G11)
+        // ------------------------------------------------------------------
+        async function loadActiveTermsTable() {
+            try {
+                const res = await fetch("/api/glossary/terms/active");
+                if (!res.ok) return;
+                const data = await res.json();
+                glossaryState.activeTerms = Array.isArray(data.terms) ? data.terms : [];
+                renderActiveTermsTable();
+            } catch (err) {
+                console.error("加载已激活热词明细失败:", err);
+            }
+        }
+
+        function onActiveTermsFilterChange() {
+            renderActiveTermsTable();
+        }
+
+        function onActiveTermsSearchInput() {
+            renderActiveTermsTable();
+        }
+
+        function renderActiveTermsTable() {
+            const scopeSelect = document.getElementById("active-terms-filter-scope");
+            const searchInput = document.getElementById("active-terms-search");
+            const tbody = document.getElementById("active-terms-tbody");
+            const totalBadge = document.getElementById("active-terms-total-badge");
+            const emptyHint = document.getElementById("active-terms-empty");
+
+            if (!tbody) return;
+
+            const selectedScope = scopeSelect ? scopeSelect.value : "all";
+            const query = searchInput ? searchInput.value.trim().toLowerCase() : "";
+
+            let terms = glossaryState.activeTerms || [];
+
+            // Scope filter
+            if (selectedScope !== "all") {
+                terms = terms.filter(item => item.scope === selectedScope || item.package_id === selectedScope);
+            }
+
+            // Search filter
+            if (query) {
+                terms = terms.filter(item => {
+                    const zh = (item.chinese || "").toLowerCase();
+                    const tgt = (item.target || "").toLowerCase();
+                    const en = (item.english || "").toLowerCase();
+                    const pkg = (item.package_name || "").toLowerCase();
+                    return zh.includes(query) || tgt.includes(query) || en.includes(query) || pkg.includes(query);
+                });
+            }
+
+            if (totalBadge) {
+                totalBadge.textContent = `共 ${terms.length} 词`;
+            }
+
+            tbody.innerHTML = "";
+
+            if (terms.length === 0) {
+                if (emptyHint) emptyHint.style.display = "block";
+                return;
+            }
+
+            if (emptyHint) emptyHint.style.display = "none";
+
+            // Render capped to 150 rows for performance
+            const maxRows = 150;
+            const slice = terms.slice(0, maxRows);
+
+            slice.forEach(item => {
+                const tr = document.createElement("tr");
+                tr.style.borderBottom = "1px solid rgba(255, 255, 255, 0.05)";
+
+                const tdZh = document.createElement("td");
+                tdZh.style.padding = "6px 10px";
+                tdZh.style.color = "#f8fafc";
+                tdZh.style.fontWeight = "500";
+                tdZh.textContent = item.chinese || "-";
+
+                const tdEn = document.createElement("td");
+                tdEn.style.padding = "6px 10px";
+                tdEn.style.color = "#38bdf8";
+                tdEn.textContent = item.target || item.english || "-";
+
+                const tdPkg = document.createElement("td");
+                tdPkg.style.padding = "6px 10px";
+                tdPkg.style.color = "#94a3b8";
+                tdPkg.style.fontSize = "11px";
+                tdPkg.textContent = item.package_name || item.package_id || "-";
+
+                const tdPri = document.createElement("td");
+                tdPri.style.padding = "6px 10px";
+                tdPri.style.textAlign = "center";
+
+                const chip = document.createElement("span");
+                chip.style.fontSize = "10px";
+                chip.style.padding = "2px 6px";
+                chip.style.borderRadius = "4px";
+                chip.style.fontWeight = "600";
+                const pri = item.priority || "P2";
+                chip.textContent = pri;
+
+                if (pri === "P0") {
+                    chip.style.background = "rgba(239, 68, 68, 0.2)";
+                    chip.style.color = "#f87171";
+                    chip.style.border = "1px solid rgba(239, 68, 68, 0.4)";
+                } else if (pri === "P1") {
+                    chip.style.background = "rgba(245, 158, 11, 0.2)";
+                    chip.style.color = "#fbbf24";
+                    chip.style.border = "1px solid rgba(245, 158, 11, 0.4)";
+                } else if (pri === "P2") {
+                    chip.style.background = "rgba(16, 185, 129, 0.2)";
+                    chip.style.color = "#34d399";
+                    chip.style.border = "1px solid rgba(16, 185, 129, 0.4)";
+                } else {
+                    chip.style.background = "rgba(99, 102, 241, 0.2)";
+                    chip.style.color = "#818cf8";
+                    chip.style.border = "1px solid rgba(99, 102, 241, 0.4)";
+                }
+
+                tdPri.appendChild(chip);
+
+                tr.appendChild(tdZh);
+                tr.appendChild(tdEn);
+                tr.appendChild(tdPkg);
+                tr.appendChild(tdPri);
+                tbody.appendChild(tr);
+            });
+
+            if (terms.length > maxRows) {
+                const trCap = document.createElement("tr");
+                const tdCap = document.createElement("td");
+                tdCap.colSpan = 4;
+                tdCap.style.padding = "8px";
+                tdCap.style.textAlign = "center";
+                tdCap.style.color = "#64748b";
+                tdCap.style.fontSize = "11px";
+                tdCap.textContent = `已显示前 ${maxRows} 条（当前筛选共 ${terms.length} 条），如需查找请使用上方搜索框`;
+                trCap.appendChild(tdCap);
+                tbody.appendChild(trCap);
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // 实时录入前置冲突/覆盖检测探针 (AC-G12)
+        // ------------------------------------------------------------------
+        let conflictProbeTimer = null;
+
+        function triggerConflictProbe() {
+            if (conflictProbeTimer) {
+                clearTimeout(conflictProbeTimer);
+            }
+            conflictProbeTimer = setTimeout(runConflictProbe, 180);
+        }
+
+        async function runConflictProbe() {
+            const srcInput = document.getElementById("term-source");
+            const tgtInput = document.getElementById("term-target");
+            const dirSelect = document.getElementById("term-direction");
+            const scopeSelect = document.getElementById("term-scope");
+            const probeContainer = document.getElementById("term-conflict-probe");
+            const probeBadge = document.getElementById("term-probe-badge");
+            const probeText = document.getElementById("term-probe-text");
+
+            if (!srcInput || !probeContainer || !probeBadge || !probeText) return;
+
+            const src = srcInput.value.trim();
+            const tgt = tgtInput ? tgtInput.value.trim() : "";
+            const dir = dirSelect ? dirSelect.value : "terms_zh_to_en";
+            const isSession = scopeSelect ? (scopeSelect.value === "session") : true;
+
+            if (!src) {
+                probeContainer.style.display = "none";
+                probeBadge.textContent = "";
+                probeText.textContent = "";
+                return;
+            }
+
+            try {
+                const res = await fetch("/api/glossary/check_conflict", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        chinese: src,
+                        target: tgt,
+                        category: dir,
+                        is_session: isSession
+                    })
+                });
+                if (!res.ok) return;
+                const result = await res.json();
+
+                if (result.state === 0 || !result.badge) {
+                    probeContainer.style.display = "none";
+                    return;
+                }
+
+                probeContainer.style.display = "flex";
+                probeBadge.textContent = result.badge;
+                probeText.textContent = result.message || "";
+
+                if (result.state === 1 || result.status === "new") {
+                    probeContainer.style.borderColor = "rgba(16, 185, 129, 0.4)";
+                    probeContainer.style.background = "rgba(16, 185, 129, 0.1)";
+                    probeBadge.style.background = "rgba(16, 185, 129, 0.25)";
+                    probeBadge.style.color = "#34d399";
+                } else if (result.state === 2 || result.status === "override") {
+                    probeContainer.style.borderColor = "rgba(245, 158, 11, 0.5)";
+                    probeContainer.style.background = "rgba(245, 158, 11, 0.12)";
+                    probeBadge.style.background = "rgba(245, 158, 11, 0.25)";
+                    probeBadge.style.color = "#fbbf24";
+                } else if (result.state === 3 || result.status === "identical") {
+                    probeContainer.style.borderColor = "rgba(59, 130, 246, 0.4)";
+                    probeContainer.style.background = "rgba(59, 130, 246, 0.1)";
+                    probeBadge.style.background = "rgba(59, 130, 246, 0.25)";
+                    probeBadge.style.color = "#60a5fa";
+                }
+            } catch (err) {
+                console.error("冲突探针请求异常:", err);
+            }
+        }
+
+        // 页面初始化：检测 URL 参数 ?drawer=open / ?drawer=glossary 或 #drawer 自动打开抽屉
         function checkAutoOpenDrawer() {
             const params = new URLSearchParams(window.location.search);
-            if (params.get("drawer") === "open" || window.location.hash === "#drawer") {
+            if (params.get("drawer") === "glossary") {
+                openConfigDrawer("glossary");
+            } else if (params.get("drawer") === "open" || window.location.hash === "#drawer") {
                 openConfigDrawer();
             }
         }
