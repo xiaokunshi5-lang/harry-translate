@@ -280,6 +280,18 @@ def main():
     print(f"\n⏳ 正在使用新 Key 向云端真实发起会话握手 (模型: {selected_model})...")
     ok, msg = test_dashscope_realtime_handshake(check_key, target_url)
 
+    # 专属私有 MaaS 端点自动回退机制 (AC-P6.5)
+    if not ok and ("maas.aliyuncs.com" in target_url or "dashscope.aliyuncs.com" not in target_url):
+        fallback_url = f"wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model={selected_model}"
+        print(f"\n⚠️ 私有 MaaS 专属端点握手失败 ({msg})")
+        print("🔄 正在尝试自动回退至阿里云官方公网 WebSocket 端点...")
+        print(f"   ↳ 回退地址: {fallback_url}")
+        fb_ok, fb_msg = test_dashscope_realtime_handshake(check_key, fallback_url)
+        if fb_ok:
+            ok = True
+            msg = f"官方公网端点握手成功！(已自动从私有 MaaS 端点回退)"
+            target_url = fallback_url
+
     if ok:
         print(f"✅ {msg}")
         set_env_value("DASHSCOPE_API_KEY", check_key)
@@ -290,6 +302,7 @@ def main():
         print(f"   • 服务厂商: 阿里云百炼 (DashScope)")
         print(f"   • 生效 Key : {masked_saved}")
         print(f"   • 生效模型: {selected_model}")
+        print(f"   • 接口地址: {target_url}")
         print("=" * 66)
         print("🚀 您现在可以随时启动同传：")
         print("   • 终端执行: ./start.sh")

@@ -72,17 +72,14 @@ QWEN_REALTIME_WS_URL = os.getenv(
     "QWEN_REALTIME_WS_URL",
     "wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=qwen3.8-livetranslate-flash-realtime",
 )
+PORT = int(os.getenv("PORT", "8000"))
 
-DEFAULT_ENGINE = os.getenv("DEFAULT_ENGINE") or os.getenv("ACTIVE_ENGINE")
-if DEFAULT_ENGINE:
-    if "qwen" in DEFAULT_ENGINE.lower():
-        active_engine_type = "qwen3.8-livetranslate-flash-realtime"
-    else:
-        active_engine_type = "gummy-realtime-v1"
-elif "maas.aliyuncs.com" in QWEN_REALTIME_WS_URL:
+DEFAULT_ENGINE = os.getenv("DEFAULT_ENGINE") or os.getenv("ACTIVE_ENGINE") or "qwen3.8-livetranslate-flash-realtime"
+if "qwen" in DEFAULT_ENGINE.lower():
     active_engine_type = "qwen3.8-livetranslate-flash-realtime"
 else:
     active_engine_type = "gummy-realtime-v1"
+
 
 main_loop: Optional[asyncio.AbstractEventLoop] = None
 should_run = True
@@ -144,7 +141,7 @@ broadcast_parallel = broadcast_to_channel
 # Key Masking & .env Preservation Utilities
 # ---------------------------------------------------------------------------
 def mask_api_key(key: Optional[str]) -> str:
-    """Return a short masked representation that never reveals the full key."""
+    """Mask API key showing prefix and suffix, e.g., sk-38a...9x12."""
     if not key:
         return ""
     k = str(key).strip()
@@ -411,12 +408,32 @@ class ChannelSession:
 
     def switch_engine(self, engine_model: str) -> None:
         """Switch active engine between Gummy and Qwen 3.8."""
+        old_engine = self.active_engine
+        target_engine_type = (
+            "gummy-realtime-v1"
+            if "gummy" in engine_model.lower()
+            else "qwen3.8-livetranslate-flash-realtime"
+        )
+        if target_engine_type == self.active_engine_type and getattr(self.active_engine, "is_running", False):
+            return
+
         if "gummy" in engine_model.lower():
             self.active_engine_type = "gummy-realtime-v1"
             self.active_engine = self.gummy_engine
         else:
             self.active_engine_type = "qwen3.8-livetranslate-flash-realtime"
             self.active_engine = self.qwen_engine
+
+        # Graceful transition: if session is running, stop old engine and start new engine
+        if self.is_ready.is_set() or getattr(old_engine, "is_running", False):
+            if old_engine != self.active_engine and hasattr(old_engine, "stop"):
+                try:
+                    old_engine.stop()
+                except Exception:
+                    pass
+            key = getattr(self.active_engine, "api_key", None) or DASHSCOPE_API_KEY
+            self.active_engine.start(key)
+
         self.sync_hotwords()
 
     def update_api_key(self, new_key: str) -> None:
@@ -458,8 +475,7 @@ class ChannelSession:
     def start(self, api_key: Optional[str] = None) -> None:
         key = api_key or DASHSCOPE_API_KEY
         self.sync_hotwords()
-        self.gummy_engine.start(key)
-        self.qwen_engine.start(key)
+        self.active_engine.start(key)
         self.is_ready.set()
 
     def stop(self) -> None:
@@ -558,11 +574,11 @@ async def lifespan(app: FastAPI):
         ch.start(DASHSCOPE_API_KEY)
     print(">> [服务启动] Harry Translate (哈利同传) 双通道极速同传系统已就绪！")
     print(f"   • 当前同传引擎: {active_engine_type}")
-    print("   • 主控面板:    http://localhost:8000/")
-    print("   • 悬浮同传HUD: http://localhost:8000/hud (Zero-install Fallback)")
-    print("   • 中译英大屏:  http://localhost:8000/en  (投屏给外宾看)")
-    print("   • 英译重大屏:  http://localhost:8000/zh  (投屏给中方看)")
-    print("   • 左右双栏屏:  http://localhost:8000/split (现场控台对照)")
+    print(f"   • 主控面板:    http://localhost:{PORT}/")
+    print(f"   • 悬浮同传HUD: http://localhost:{PORT}/hud (Zero-install Fallback)")
+    print(f"   • 中译英大屏:  http://localhost:{PORT}/en  (投屏给外宾看)")
+    print(f"   • 英译重大屏:  http://localhost:{PORT}/zh  (投屏给中方看)")
+    print(f"   • 左右双栏屏:  http://localhost:{PORT}/split (现场控台对照)")
     yield
     audio_capture_mgr.stop()
     for ch in active_channels:
@@ -1301,14 +1317,8 @@ async def post_glossary_check_conflict(request: Request):
 # Server Main Entrypoint
 # ---------------------------------------------------------------------------
 def main():
-    for ch in active_channels:
-        threading.Thread(target=ch.run_ws, daemon=True).start()
-        threading.Thread(target=ch.run_audio_sender, daemon=True).start()
-
-    audio_capture_mgr.start()
-
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
+    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="warning")
 
 
 if __name__ == "__main__":

@@ -389,6 +389,7 @@ class QwenLiveTranslate38Engine:
 
         self.is_ready = threading.Event()
         self.is_running = False
+        self.session_generation: int = 0
         self.ws_client: Optional[Any] = None
         self.hotwords: List[str] = []
 
@@ -397,7 +398,10 @@ class QwenLiveTranslate38Engine:
         self.target_text: str = ""
         self.last_audio_push_time: float = 0.0
         self.is_sentence_finalized: bool = False
+        self.has_active_response: bool = False
         self.lock = threading.Lock()
+        self.start_lock = threading.Lock()
+        self._ws_thread: Optional[threading.Thread] = None
 
         # Token usage tracking
         self.input_tokens: int = 0
@@ -431,6 +435,12 @@ class QwenLiveTranslate38Engine:
                 "translation": {
                     "language": lang,
                 },
+                "turn_detection": {
+                    "type": "server_vad",
+                    "threshold": 0.35,
+                    "silence_duration_ms": 320,
+                    "prefix_padding_ms": 200,
+                },
             },
         }
         if corpus:
@@ -458,32 +468,66 @@ class QwenLiveTranslate38Engine:
 
     def start(self, api_key: Optional[str] = None) -> bool:
         """Start engine session."""
-        if api_key:
-            self.api_key = api_key
+        with self.start_lock:
+            if self.is_running:
+                if self.mock_mode:
+                    return True
+                if self._ws_thread and self._ws_thread.is_alive():
+                    return True
 
-        effective_key = self.api_key.strip() if self.api_key else ""
-        is_invalid_key = (not effective_key) or effective_key.startswith("在此填入") or ("your" in effective_key.lower())
+            if api_key:
+                self.api_key = api_key
 
-        if self.mock_mode or not HAS_WEBSOCKET or is_invalid_key:
-            self.mock_mode = True
+            effective_key = self.api_key.strip() if self.api_key else ""
+            is_invalid_key = (not effective_key) or effective_key.startswith("在此填入") or ("your" in effective_key.lower())
+
+            if self.mock_mode or not HAS_WEBSOCKET or is_invalid_key:
+                self.mock_mode = True
+                self.is_running = True
+                self.is_ready.set()
+                return True
+
             self.is_running = True
-            self.is_ready.set()
+            self.session_generation += 1
+            my_gen = self.session_generation
+
+            def _thread_target():
+                try:
+                    import inspect
+                    sig = inspect.signature(self._run_ws)
+                    if len(sig.parameters) == 0:
+                        self._run_ws()
+                        return
+                except Exception:
+                    pass
+                self._run_ws(my_gen)
+
+            # Asynchronously run WebSocket thread
+            self._ws_thread = threading.Thread(
+                target=_thread_target,
+                daemon=True,
+                name=f"QwenWS-{self.channel_id}",
+            )
+            self._ws_thread.start()
             return True
 
-        self.is_running = True
-        # Asynchronously run WebSocket thread
-        threading.Thread(target=self._run_ws, daemon=True, name=f"QwenWS-{self.channel_id}").start()
-        return True
-
-    def _run_ws(self) -> None:
+    def _run_ws(self, my_gen: Optional[int] = None) -> None:
         """Maintain persistent WebSocket connection with auto-reconnect."""
-        while self.is_running:
+        if my_gen is None:
+            my_gen = self.session_generation
+
+        while self.is_running and my_gen == self.session_generation:
             if not self.api_key or self.api_key.startswith("在此填入"):
-                time.sleep(2.0)
+                for _ in range(20):
+                    if not self.is_running or my_gen != self.session_generation:
+                        break
+                    time.sleep(0.1)
                 continue
 
             # Respect TokenBucketLimiter when initiating session
             self.limiter.acquire(1.0)
+            if not self.is_running or my_gen != self.session_generation:
+                break
 
             headers = ["Authorization: Bearer " + self.api_key]
             self.ws_client = websocket.WebSocketApp(
@@ -499,8 +543,11 @@ class QwenLiveTranslate38Engine:
             except Exception:
                 pass
 
-            if self.is_running:
-                time.sleep(1.0)
+            if self.is_running and my_gen == self.session_generation:
+                for _ in range(10):
+                    if not self.is_running or my_gen != self.session_generation:
+                        break
+                    time.sleep(0.1)
 
     def _on_ws_open(self, ws: Any) -> None:
         """Initialize session upon connection."""
@@ -516,58 +563,101 @@ class QwenLiveTranslate38Engine:
         event_type = data.get("type", "")
         if event_type == "session.updated":
             self.is_ready.set()
-        elif event_type == "input_audio_buffer.speech_started":
+        elif event_type == "response.created":
             with self.lock:
+                self.has_active_response = True
+        elif event_type == "input_audio_buffer.speech_started":
+            seal_info = None
+            with self.lock:
+                if not self.is_sentence_finalized and (self.source_text or self.target_text):
+                    seal_info = (self.sentence_id, self.source_text, self.target_text)
+                    self.is_sentence_finalized = True
+
                 self.sentence_id += 1
                 self.source_text = ""
                 self.target_text = ""
                 self.is_sentence_finalized = False
-            self._dispatch_payload(self.sentence_id, "", "", False, 0)
+                self.has_active_response = False
+                current_id = self.sentence_id
+
+            if seal_info is not None:
+                self._dispatch_payload(seal_info[0], seal_info[1], seal_info[2], True, 0)
+
+            self._dispatch_payload(current_id, "", "", False, 0)
         elif "input_audio_transcription" in event_type:
-            delta = data.get("delta") or data.get("text") or ""
+            text = data.get("text")
             transcript = data.get("transcript")
+            delta = data.get("delta")
+            stash = data.get("stash") or ""
+
             with self.lock:
-                if self.is_sentence_finalized:
+                if self.sentence_id == 0 or self.is_sentence_finalized:
                     self.sentence_id += 1
                     self.source_text = ""
                     self.target_text = ""
                     self.is_sentence_finalized = False
-                if transcript:
+                    self.has_active_response = False
+
+                if text is not None:
+                    self.source_text = text
+                elif transcript is not None:
                     self.source_text = transcript
                 elif delta:
                     self.source_text += delta
+
+                display_source = f"{self.source_text}{stash}" if stash else self.source_text
+                curr_sent_id = self.sentence_id
+                curr_target = self.target_text
+
             # During pure ASR phase (before MT text deltas start), target is strictly empty
-            self._dispatch_payload(self.sentence_id, self.source_text, self.target_text, False)
+            self._dispatch_payload(curr_sent_id, display_source, curr_target, False)
         elif event_type in ("response.text.delta", "response.audio_transcript.delta"):
             delta = data.get("delta") or data.get("text") or ""
             with self.lock:
+                self.has_active_response = True
                 if delta:
                     self.target_text += delta
-            self._dispatch_payload(self.sentence_id, self.source_text, self.target_text, False)
+                curr_sent_id = self.sentence_id
+                curr_source = self.source_text
+                curr_target = self.target_text
+            self._dispatch_payload(curr_sent_id, curr_source, curr_target, False)
         elif event_type in ("response.text.done", "response.audio_transcript.done"):
             text = data.get("text") or data.get("transcript")
             with self.lock:
+                self.has_active_response = True
                 if text:
                     self.target_text = text
-            self._dispatch_payload(self.sentence_id, self.source_text, self.target_text, False)
+                curr_sent_id = self.sentence_id
+                curr_source = self.source_text
+                curr_target = self.target_text
+            self._dispatch_payload(curr_sent_id, curr_source, curr_target, False)
         elif event_type == "response.done":
-            with self.lock:
-                self.is_sentence_finalized = True
             usage = data.get("response", {}).get("usage") or data.get("usage") or {}
             in_tok = usage.get("input_tokens", 0)
             out_tok = usage.get("output_tokens", 0)
             tot_tok = usage.get("total_tokens", in_tok + out_tok)
+
+            should_dispatch_final = False
             with self.lock:
                 self.input_tokens += in_tok
                 self.output_tokens += out_tok
                 self.total_tokens += tot_tok
                 self.cost_rmb = (self.input_tokens * 0.00004) + (self.output_tokens * 0.0001)
 
-            latency_ms = 0
-            if self.last_audio_push_time > 0:
-                latency_ms = max(1, int((time.time() - self.last_audio_push_time) * 1000))
+                # Guard against dispatching empty final frames if has_active_response is false
+                if self.has_active_response or bool(self.source_text or self.target_text):
+                    should_dispatch_final = True
+                    self.is_sentence_finalized = True
+                    self.has_active_response = False
+                    curr_sent_id = self.sentence_id
+                    curr_source = self.source_text
+                    curr_target = self.target_text
 
-            self._dispatch_payload(self.sentence_id, self.source_text, self.target_text, True, latency_ms)
+            if should_dispatch_final:
+                latency_ms = 0
+                if self.last_audio_push_time > 0:
+                    latency_ms = max(1, int((time.time() - self.last_audio_push_time) * 1000))
+                self._dispatch_payload(curr_sent_id, curr_source, curr_target, True, latency_ms)
 
     def _on_ws_error(self, ws: Any, error: Any) -> None:
         pass
@@ -646,6 +736,11 @@ class QwenLiveTranslate38Engine:
             sid = self.sentence_id
             self.source_text = source
             self.target_text = target
+            self.is_sentence_finalized = bool(is_final)
+            if is_final:
+                self.has_active_response = False
+            elif target:
+                self.has_active_response = True
 
         return self._dispatch_payload(
             sentence_id=sid,
@@ -657,11 +752,18 @@ class QwenLiveTranslate38Engine:
 
     def stop(self) -> None:
         """Stop engine and close WebSocket."""
-        self.is_running = False
-        self.is_ready.clear()
-        if self.ws_client:
-            try:
-                self.ws_client.close()
-            except Exception:
-                pass
-            self.ws_client = None
+        with self.start_lock:
+            self.is_running = False
+            self.session_generation += 1
+            self.is_ready.clear()
+            old_thread = self._ws_thread
+            self._ws_thread = None
+            if self.ws_client:
+                try:
+                    self.ws_client.close()
+                except Exception:
+                    pass
+                self.ws_client = None
+
+        if old_thread and old_thread.is_alive() and old_thread != threading.current_thread():
+            old_thread.join(timeout=1.0)

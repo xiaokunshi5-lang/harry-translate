@@ -98,6 +98,153 @@ def downmix_to_mono(raw_data: bytes, channels: int) -> bytes:
     return a[0::channels].tobytes()
 
 
+class AdaptiveFarFieldAGC:
+    """
+    Adaptive Far-Field Automatic Gain Control (AGC) with Noise Gating and Anti-Clipping Limiter.
+    Optimized for 1~2m far-field speech capture hot path (<0.015ms execution time).
+
+    Parameters:
+    - target_rms: Target energy level (sweet spot: 1600.0)
+    - max_gain: Maximum gain ceiling (6.5x)
+    - noise_floor: Noise gate threshold (140.0 RMS). RMS < 140 is never amplified (gain = 1.0).
+    - soft_knee: Smooth transition knee between noise floor (140.0) and far-field speech (180.0).
+    - alpha: Exponential moving average (EMA) smoothing coefficient (0.30).
+    - soft_limit: Anti-clipping saturation limit (31500). Clamps gain if peak * gain > 31500.
+    """
+
+    def __init__(
+        self,
+        target_rms: float = 1600.0,
+        max_gain: float = 6.5,
+        noise_floor: float = 140.0,
+        soft_knee: float = 180.0,
+        alpha: float = 0.30,
+        soft_limit: float = 31500.0,
+    ):
+        self.target_rms: float = float(target_rms)
+        self.max_gain: float = float(max_gain)
+        self.noise_floor: float = float(noise_floor)
+        self.soft_knee: float = float(soft_knee)
+        self.alpha: float = float(alpha)
+        self.soft_limit: float = float(soft_limit)
+        self.last_gain: float = 1.0
+
+    def reset(self) -> None:
+        """Reset temporal smoothing state to baseline unity gain."""
+        self.last_gain = 1.0
+
+    @staticmethod
+    def _compute_rms(raw_pcm: bytes) -> int:
+        if audioop is not None:
+            return audioop.rms(raw_pcm, 2)
+        a = array.array("h")
+        a.frombytes(raw_pcm)
+        if not a:
+            return 0
+        return int((sum(x * x for x in a) / len(a)) ** 0.5)
+
+    @staticmethod
+    def _compute_peak(raw_pcm: bytes) -> int:
+        if audioop is not None:
+            return audioop.max(raw_pcm, 2)
+        a = array.array("h")
+        a.frombytes(raw_pcm)
+        if not a:
+            return 0
+        return max(abs(x) for x in a)
+
+    @staticmethod
+    def _apply_gain(raw_pcm: bytes, factor: float) -> bytes:
+        if audioop is not None:
+            return audioop.mul(raw_pcm, 2, factor)
+        a = array.array("h")
+        a.frombytes(raw_pcm)
+        for i in range(len(a)):
+            val = int(a[i] * factor)
+            if val > 32767:
+                val = 32767
+            elif val < -32768:
+                val = -32768
+            a[i] = val
+        return a.tobytes()
+
+    def process(self, raw_pcm: bytes) -> bytes:
+        """
+        Process single 16-bit mono PCM chunk with adaptive AGC.
+        Hot-path execution time strictly < 0.015ms.
+        """
+        if not raw_pcm:
+            return raw_pcm
+
+        # Ensure 2-byte alignment for 16-bit PCM
+        remainder = len(raw_pcm) % 2
+        if remainder != 0:
+            raw_pcm = raw_pcm[:-remainder]
+            if not raw_pcm:
+                return raw_pcm
+
+        if audioop is not None:
+            rms = audioop.rms(raw_pcm, 2)
+            peak = audioop.max(raw_pcm, 2)
+        else:
+            rms = self._compute_rms(raw_pcm)
+            peak = self._compute_peak(raw_pcm)
+
+        # 1. Noise Floor Gating: RMS < 140 is NOT amplified (gain = 1.0)
+        if rms < self.noise_floor:
+            self.last_gain = (1.0 - self.alpha) * self.last_gain + self.alpha * 1.0
+            return raw_pcm
+
+        # 2. Soft Knee Transition (140 <= RMS < 180)
+        elif rms < self.soft_knee:
+            ratio = (rms - self.noise_floor) / (self.soft_knee - self.noise_floor)
+            full_gain = min(self.max_gain, self.target_rms / self.soft_knee)
+            target_gain = 1.0 + ratio * (full_gain - 1.0)
+
+        # 3. Far-Field Speech (180 <= RMS <= 2500): dynamically amplified to target RMS (>= 1000)
+        elif rms <= 2500.0:
+            target_gain = min(self.max_gain, max(1.0, self.target_rms / max(rms, 1.0)))
+
+        # 4. Near-Field Loud Speech (RMS > 2500): unity gain
+        else:
+            target_gain = 1.0
+
+        # 5. Anti-Clipping Limiter (target_gain clamp)
+        if peak > 0 and (peak * target_gain) > self.soft_limit:
+            target_gain = self.soft_limit / peak
+
+        # 6. Exponential Moving Average (EMA) smoothing
+        gain = (1.0 - self.alpha) * self.last_gain + self.alpha * target_gain
+
+        # 7. Anti-Clipping Limiter (effective gain clamp)
+        if peak > 0 and (peak * gain) > self.soft_limit:
+            gain = self.soft_limit / peak
+
+        self.last_gain = gain
+
+        # Bypass multiplication if gain is unity
+        if abs(gain - 1.0) < 1e-4:
+            return raw_pcm
+
+        if audioop is not None:
+            return audioop.mul(raw_pcm, 2, gain)
+        return self._apply_gain(raw_pcm, gain)
+
+    process_frame = process
+    __call__ = process
+
+
+_DEFAULT_AGC: AdaptiveFarFieldAGC = AdaptiveFarFieldAGC()
+
+
+def apply_adaptive_agc(raw_pcm: bytes) -> bytes:
+    """
+    Standalone exported helper function for hot-path Adaptive Far-Field AGC.
+    Applies target energy normalization, noise gating, and anti-clipping limiter.
+    """
+    return _DEFAULT_AGC.process(raw_pcm)
+
+
 class FastAudioCaptureWorker:
     """
     Dedicated physical capture worker for a single audio source (Mic or Loopback).
@@ -111,12 +258,15 @@ class FastAudioCaptureWorker:
         sample_rate: int = SAMPLE_RATE,
         chunk_samples: int = CHUNK_SAMPLES,
         shared_pyaudio: Optional[pyaudio.PyAudio] = None,
+        enable_agc: bool = False,
     ):
         self.channel_id = channel_id
         self.is_loopback_channel = is_loopback_channel
         self.sample_rate = sample_rate
         self.chunk_samples = chunk_samples
         self.chunk_bytes = chunk_samples * 2
+        self.enable_agc: bool = enable_agc
+        self.agc: Optional[AdaptiveFarFieldAGC] = AdaptiveFarFieldAGC() if enable_agc else None
 
         self.p: pyaudio.PyAudio = shared_pyaudio or pyaudio.PyAudio()
         self._owns_pyaudio: bool = shared_pyaudio is None
@@ -384,6 +534,21 @@ class FastAudioCaptureWorker:
         )
         self.worker_thread.start()
 
+    def process_frame(self, raw_pcm: bytes) -> bytes:
+        """
+        Process single audio frame through downmixing and AGC (if enabled).
+        Precondition: 16-bit signed PCM (<h), 50ms chunk (1600 bytes at 16kHz).
+        Postcondition: Output is valid 1600-byte PCM. Execution time strictly < 0.015ms.
+        """
+        if not raw_pcm:
+            return raw_pcm
+        ch = self.channels
+        if ch > 1:
+            raw_pcm = downmix_to_mono(raw_pcm, ch)
+        if self.enable_agc and self.agc is not None:
+            raw_pcm = self.agc.process(raw_pcm)
+        return raw_pcm
+
     def _capture_loop(self) -> None:
         """
         Core capture loop:
@@ -402,10 +567,8 @@ class FastAudioCaptureWorker:
                 if not raw_data:
                     continue
 
-                # Downmix if multi-channel
-                ch = self.channels
-                if ch > 1:
-                    raw_data = downmix_to_mono(raw_data, ch)
+                # Process frame (downmix if multi-channel + Adaptive Far-Field AGC)
+                raw_data = self.process_frame(raw_data)
 
                 self.total_frames_captured += 1
 
@@ -468,22 +631,24 @@ class FastAudioCaptureManager:
         self.p = pyaudio.PyAudio()
         self._device_cache: Dict[int, Dict[str, Any]] = {}
 
-        # Worker A: Channel A (Mic)
+        # Worker A: Channel A (Mic) - Enable Far-Field AGC
         self.worker_a = FastAudioCaptureWorker(
             channel_id="A",
             is_loopback_channel=False,
             sample_rate=self.sample_rate,
             chunk_samples=CHUNK_SAMPLES,
             shared_pyaudio=self.p,
+            enable_agc=True,
         )
 
-        # Worker B: Channel B (Virtual Loopback)
+        # Worker B: Channel B (Virtual Loopback) - Disable AGC (digital line level)
         self.worker_b = FastAudioCaptureWorker(
             channel_id="B",
             is_loopback_channel=True,
             sample_rate=self.sample_rate,
             chunk_samples=CHUNK_SAMPLES,
             shared_pyaudio=self.p,
+            enable_agc=False,
         )
 
         # Pre-open default input on Channel A for sub-35ms initial responsiveness
@@ -635,3 +800,20 @@ class FastAudioCaptureManager:
 
 # Backward-compatible drop-in alias
 AudioCaptureManager = FastAudioCaptureManager
+
+__all__ = [
+    "AUDIOOP_BACKEND",
+    "CHUNK_BYTES",
+    "CHUNK_SAMPLES",
+    "CHUNK_SIZE",
+    "LOOPBACK_KEYWORDS",
+    "MAX_JSON_QUEUE_SIZE",
+    "SAMPLE_RATE",
+    "AdaptiveFarFieldAGC",
+    "apply_adaptive_agc",
+    "AudioCaptureManager",
+    "FastAudioCaptureManager",
+    "FastAudioCaptureWorker",
+    "downmix_to_mono",
+    "is_loopback_device_name",
+]

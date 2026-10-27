@@ -27,6 +27,8 @@
 | **17** | **快速发言时上一句译文先蹦出来**<br>新句开头突兀复读闪现 | 跨句未做原子隔离，纯 ASR 转写阶段复用了旧句历史译文 | **通用** | `v3.6` 服务端接收新 `sentence_id` 时原子清空缓存，前端建立 `sentenceHasTranslation` 状态锁屏障，彻底根除跨句复读闪现；测试命令：<br>`.venv/bin/python -m unittest tests/repro_issue_stale_sentence_leak.py` |
 | **18** | **希望中文原文有更大展示空间**<br>在小窗口看中文原文字号偏小 | 默认 68:32 比例优先倾向主译文，辅助区垂直净空有限 | **通用** | 按下 **`Cmd + Shift + R`**（Windows 按 **`Ctrl + Shift + R`**）秒级无缝切换为 **`65:35`** 模式，辅助区扩展至 35%，自动持久化记忆；测试命令：<br>`.venv/bin/python -m unittest tests/test_hud_dual_ratio_mode.py` |
 | **19** | **浅色或白底 PPT 下字体看不清**<br>黄色字体在白底下对比度弱 | 会议胶片为浅色或高亮背景 | **通用** | 按下 **`Cmd + Shift + C`**（Windows 按 **`Ctrl + Shift + C`**）切换为 **`🎨 黑曜石`** 配色方案（深黑粗体加纯白发光轮廓），专为纯白 PPT 打造；测试命令：<br>`.venv/bin/python -m unittest tests/test_tencent_steady_hud_and_themes.py` |
+| **20** | **会议桌距离发言人 1~2 米拾音偏弱**<br>说话声音小导致识别漏字 | 物理距离导致声压衰减，或环境空调微弱底噪干扰 | **通用** | `v3.9` 内置 C 级远场自适应软限幅 AGC（0.0023ms），自动提振 $1.8\times \sim 2.5\times$ 能量并平滑软限幅防爆音，云端 320ms 极速 Server VAD 断句；测试命令：<br>`.venv/bin/python -m unittest tests/test_float_window_parity_and_speed.py` |
+| **21** | **悬浮窗退居后台时偶发滞后**<br>长时间切到其他窗口后吐字变慢 | macOS 系统 App Nap 机制对非激活进程施加 CPU 降频节能节流 | **Mac** | `v3.9` 已在 `float_app.py` 注入原生 `NSActivityLatencyCritical` 活性锁，保证退居后台仍维持高优先级毫秒级调度；测试命令：<br>`.venv/bin/python -m unittest tests/challenger_ui_engine_stress.py` |
 
 ---
 

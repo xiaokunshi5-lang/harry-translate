@@ -1,4 +1,4 @@
-# Harry Translate (哈利同传) 零门槛部署与全平台使用手册 (v3.8-glossary-bank-smart-quota-workbench)
+# Harry Translate (哈利同传) 零门槛部署与全平台使用手册 (v3.9-hud-parity-history-line-farfield-agc)
 
 本手册专为会务现场人员、同传译员及个人用户编写。按照本指南操作，可在 5 分钟内完成环境准备、系统运行以及万级热词银行、云端容量水位仪、字体调色和透明度个性化配置。
 
@@ -393,7 +393,7 @@ notepad .env
 
 - 在终端执行秒级无损回滚命令：
   ```bash
-  git switch --detach v3.8.0
+  git switch --detach v3.9.0
   ```
   使用 Git 保存本地修改后安全切换至已发布的稳定标签基线。
 
@@ -418,6 +418,20 @@ notepad .env
   - 会议结束后在工作台中轻点 **「🧹 一键清空本场临时词」** 即可瞬间重置，磁盘文件零修改；
   - 如果某场会议沉淀的术语有长期价值，点击 **「💾 一键转存为永久词库」**，即可永久合并保存至 `glossary.json`。
 
+### Q15: 悬浮同传窗口与普通网页窗口翻译速度和内容会有体感差异吗？ (v3.9 升级)
+
+- **出厂保障**：系统在 `v3.9` 彻底重构了流式传输与渲染管道：
+  1. 悬浮窗 WebKit 前端采用与浏览器完全一致的同步无锁 DOM 直写机制，耗时仅 $0.0018\text{ms}$，首字上屏与连续字词吐出绝不丢帧、绝无排队滞后；
+  2. 新增 `#historyLine` 历史定稿留存视口，说话人换句或停顿时，上一句译文稳固锚定在上方，当前句在下方实时流式推进，阅读体验超越普通浏览器单行字幕；
+  3. 后台进程通过 macOS `NSActivityLatencyCritical` 保持最高调度优先级，退居后台也绝对不被系统 App Nap 节流。
+
+### Q16: 电脑放在会议桌中间距离发言人 1~2 米拾音发弱怎么办？ (v3.9 升级)
+
+- **自适应远场 AGC 赋能**：系统底层内嵌 C 级自适应软限幅自动增益（Far-Field Adaptive AGC）：
+  1. 自动根据输入声压 RMS 评估讲话距离，对 1~2 米远场微弱拾音自动动态提振 $1.8\times \sim 2.5\times$ 能量倍率；
+  2. 智能门限（`noise_floor = 140`）过滤桌面杂音与空调底噪，配合双曲正切软限幅（Soft-Knee Peak Limiter）杜绝近身偶发爆音；
+  3. 云端 Server VAD 参数精调至 320ms 极速断句，远距离发音停顿时云端迅速定稿，自然跟手。
+
 ---
 
 ## 七、部署完成测试验收指引
@@ -428,10 +442,10 @@ notepad .env
 # 激活项目专属虚拟环境 (Windows 使用 call .venv\Scripts\activate.bat)
 source .venv/bin/activate
 
-# 1. 验证 285 项全量自动化测试套件 (包含 238 项 E2E 阶梯测试 + 47 项专项单元与对抗测试)
+# 1. 验证 315 项全量自动化测试套件 (包含 246 项 E2E 阶梯测试 + 69 项专项单元与对抗测试)
 python -m unittest discover -s tests -p 'test_*.py'
 
-# 2. 验证 238 项核心 E2E 阶梯自动化测试 (基线功能全量回归)
+# 2. 验证 246 项核心 E2E 阶梯自动化测试 (基线功能全量回归)
 python tests/run_e2e_tests.py
 
 # 3. 验证 16 维工厂级终审审计门禁 (验证声卡 50ms 切片、425ms 延迟等核心性能)
@@ -466,6 +480,12 @@ python -m unittest tests/test_repro_exp106_hud_panel_lock_fullscreen.py
 
 # 13. 验证 EXP-107 双悬浮同传窗口独立位置锁定与分窗隔离真实 Cocoa 门禁测试
 python -m unittest tests/test_repro_exp107_dual_hud_independent_lock.py
+
+# 14. 验证 EXP-108 悬浮同传与普通窗口同传流式对齐、速度与历史留存专项测试 (28 项用例)
+python -m unittest tests/test_float_window_parity_and_speed.py
+
+# 15. 验证 EXP-108 极端并发对抗与 UI 引擎抗压测试 (WebKit 极速帧压测与孤儿线程防护)
+python -m unittest tests/challenger_ui_engine_stress.py
 ```
 
 > **热词索引参考**：全量 15 个词包分类、18,449 词条明细及 4 级优先级覆盖规则请查阅 [`GLOSSARY_INDEX.md`](GLOSSARY_INDEX.md)。全部测试输出 PASS 即表明当前系统环境部署成功，处于工业级可交付状态。

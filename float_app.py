@@ -21,6 +21,7 @@ import ctypes
 import ctypes.util
 import argparse
 import threading
+import atexit
 from typing import Optional, Dict, Any
 
 # ==============================================================================
@@ -49,6 +50,8 @@ NSApplicationActivationPolicyAccessory = 1
 if sys.platform == "darwin":
     try:
         import AppKit
+        import Foundation
+        import WebKit
         from AppKit import (
             NSApp,
             NSEvent,
@@ -68,6 +71,7 @@ if sys.platform == "darwin":
         _pyobjc_available = False
 
 HUDPanelHost = None
+HUDWebKitHost = None
 if sys.platform == "darwin" and _pyobjc_available:
     from objc import super as objc_super
     try:
@@ -172,13 +176,92 @@ if sys.platform == "darwin" and _pyobjc_available:
                 return
             objc_super(HUDPanelHost, self).setFrame_display_animate_(frame, display, animate)
 
-    # Automatically hook BrowserView.WindowHost as soon as HUDPanelHost is defined
+    class HUDWebKitHost(WebKit.WKWebView):
+        """
+        Native macOS WKWebView Host for Floating HUD:
+        Disables DOM timers throttling and hidden page timer throttling
+        (_setDOMTimersThrottlingEnabled_(False)) to permanently eliminate WebKit background throttling and App Nap sleep.
+        """
+        def initWithFrame_configuration_(self, rect, config):
+            try:
+                pref = config.preferences()
+                if hasattr(pref, "_setDOMTimersThrottlingEnabled_"):
+                    pref._setDOMTimersThrottlingEnabled_(False)
+                if hasattr(pref, "_setHiddenPageDOMTimerThrottlingEnabled_"):
+                    pref._setHiddenPageDOMTimerThrottlingEnabled_(False)
+                if hasattr(pref, "_setHiddenPageDOMTimerThrottlingAutoIncreases_"):
+                    pref._setHiddenPageDOMTimerThrottlingAutoIncreases_(False)
+            except Exception:
+                pass
+            return objc_super(HUDWebKitHost, self).initWithFrame_configuration_(rect, config)
+
+        def addSubview_(self, event):
+            try:
+                event_frame = event.frame()
+                flipped_y = self.frame().size.height - (event_frame.origin.y + event_frame.size.height)
+                event.setFrameOrigin_(AppKit.NSPoint(event_frame.origin.x, flipped_y))
+            except Exception:
+                pass
+            objc_super(HUDWebKitHost, self).addSubview_(event)
+
+        def willOpenMenu_withEvent_(self, menu, event):
+            try:
+                menu.removeAllItems()
+            except Exception:
+                pass
+
+    # Automatically hook BrowserView.WindowHost & WebKitHost as soon as classes are defined
     try:
         import webview.platforms.cocoa as cocoa
         cocoa.BrowserView.WindowHost = HUDPanelHost
+        cocoa.BrowserView.WebKitHost = HUDWebKitHost
         AppKit.NSApplication.sharedApplication().setActivationPolicy_(1)
     except Exception:
         pass
+
+# ==============================================================================
+# macOS App Nap & Latency Critical Process Activity Assertion
+# ==============================================================================
+_app_nap_activity_token = None
+
+def acquire_app_nap_preventer():
+    """
+    Acquires an NSProcessInfo latency critical activity assertion on macOS:
+    (NSActivityLatencyCritical | NSActivityUserInitiatedAllowingIdleSystemSleep)
+    Permanently eliminates macOS App Nap and background timer/rendering throttling.
+    """
+    global _app_nap_activity_token
+    if sys.platform == "darwin" and _app_nap_activity_token is None:
+        try:
+            import Foundation
+            process_info = Foundation.NSProcessInfo.processInfo()
+            options = (
+                Foundation.NSActivityLatencyCritical |
+                Foundation.NSActivityUserInitiatedAllowingIdleSystemSleep
+            )
+            _app_nap_activity_token = process_info.beginActivityWithOptions_reason_(
+                options,
+                "Harry Translate HUD Low-Latency Realtime Stream"
+            )
+        except Exception:
+            _app_nap_activity_token = None
+    return _app_nap_activity_token
+
+def release_app_nap_preventer():
+    """Releases the macOS NSProcessInfo activity assertion on shutdown or window close."""
+    global _app_nap_activity_token
+    if sys.platform == "darwin" and _app_nap_activity_token is not None:
+        try:
+            import Foundation
+            Foundation.NSProcessInfo.processInfo().endActivity_(_app_nap_activity_token)
+        except Exception:
+            pass
+        finally:
+            _app_nap_activity_token = None
+
+atexit.register(release_app_nap_preventer)
+if sys.platform == "darwin":
+    acquire_app_nap_preventer()
 
 # ==============================================================================
 # Native OS Window Controllers (ctypes AppKit & user32)
@@ -494,6 +577,20 @@ class MacOSWindowController:
                     if _pyobjc_available:
                         import AppKit
                         win.setBackgroundColor_(AppKit.NSColor.clearColor())
+            except Exception:
+                pass
+
+            # Disable WKWebView DOM timers and background throttling on window preferences
+            try:
+                cv = win.contentView() if hasattr(win, "contentView") else None
+                if cv and hasattr(cv, "configuration"):
+                    pref = cv.configuration().preferences()
+                    if hasattr(pref, "_setDOMTimersThrottlingEnabled_"):
+                        pref._setDOMTimersThrottlingEnabled_(False)
+                    if hasattr(pref, "_setHiddenPageDOMTimerThrottlingEnabled_"):
+                        pref._setHiddenPageDOMTimerThrottlingEnabled_(False)
+                    if hasattr(pref, "_setHiddenPageDOMTimerThrottlingAutoIncreases_"):
+                        pref._setHiddenPageDOMTimerThrottlingAutoIncreases_(False)
             except Exception:
                 pass
         except Exception:
@@ -1161,14 +1258,18 @@ class FloatingHUDApp:
 
     def create_window(self):
         """Creates the pywebview window(s) with unique title and native transparent/frameless settings."""
-        # Hook BrowserView.WindowHost on macOS Cocoa to use native HUDPanelHost
-        if sys.platform == "darwin" and _pyobjc_available and HUDPanelHost is not None:
-            try:
-                import webview.platforms.cocoa as cocoa
-                cocoa.BrowserView.WindowHost = HUDPanelHost
-                AppKit.NSApplication.sharedApplication().setActivationPolicy_(1)
-            except Exception:
-                pass
+        # Hook BrowserView.WindowHost & WebKitHost on macOS Cocoa
+        if sys.platform == "darwin":
+            acquire_app_nap_preventer()
+            if _pyobjc_available and HUDPanelHost is not None:
+                try:
+                    import webview.platforms.cocoa as cocoa
+                    cocoa.BrowserView.WindowHost = HUDPanelHost
+                    if HUDWebKitHost is not None:
+                        cocoa.BrowserView.WebKitHost = HUDWebKitHost
+                    AppKit.NSApplication.sharedApplication().setActivationPolicy_(1)
+                except Exception:
+                    pass
 
         if webview and hasattr(webview, "settings"):
             webview.settings["DRAG_REGION_SELECTOR"] = ".pywebview-drag-region, .drag-handle, .drag-anchor-corner, #drag-anchor-corner"
@@ -1389,6 +1490,7 @@ class FloatingHUDApp:
     def on_window_closing(self):
         """Callback on window destruction to ensure native mouse state recovery."""
         self._stopped = True
+        release_app_nap_preventer()
         try:
             for ctrl in self.controllers:
                 ctrl.set_click_through(False)
@@ -1462,6 +1564,7 @@ class FloatingHUDApp:
     def close(self):
         """Closes and destroys all active HUD windows safely."""
         self._stopped = True
+        release_app_nap_preventer()
         try:
             for ctrl in self.controllers:
                 try:

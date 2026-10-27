@@ -464,7 +464,7 @@
             gap: 4px;
             transform: translateY(0);
             will-change: transform;
-            transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: transform 0.08s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         .primary-track {
@@ -475,7 +475,7 @@
             gap: 4px;
             transform: translateY(0);
             will-change: transform;
-            transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: transform 0.08s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         .auxiliary-track {
@@ -486,7 +486,27 @@
             gap: 2px;
             transform: translateY(0);
             will-change: transform;
-            transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: transform 0.08s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* 上一句定稿译文留存槽位 (History Line - Smooth Sentence Retention, 平滑留存, 自适应折行) */
+        .history-line,
+        #historyLine {
+            font-size: 15px;
+            color: rgba(255, 255, 255, 0.70);
+            color: var(--sub-aux-color, rgba(255, 255, 255, 0.70));
+            line-height: 1.35;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            display: none;
+            overflow: hidden !important;
+            text-overflow: ellipsis;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.65);
+            text-shadow: var(--sub-shadow, 0 1px 2px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.65));
+            min-height: 0;
+            opacity: 0.85;
+            transition: color 0.2s ease, font-size 0.2s ease;
         }
 
         /* 当前句流式吐字槽位 (Active Line - Streaming, 高对比粗体 700, 主视觉焦点, 自适应折行) */
@@ -559,6 +579,13 @@
 
         /* 紧凑视口自适应排版 (Compact Viewport Typography: stageH <= 75px / winH <= 130px) */
         @media (max-height: 130px) {
+            .history-line,
+            #historyLine {
+                font-size: 12px !important;
+                line-height: 1.2 !important;
+                min-height: 0 !important;
+                transition: none !important;
+            }
             .active-line,
             #activeLine {
                 font-size: 15px !important;
@@ -583,6 +610,16 @@
                 -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 10px, black 100%);
                 mask-image: linear-gradient(to bottom, transparent 0%, black 10px, black 100%);
             }
+        }
+
+        .subtitle-stage.compact-viewport .history-line,
+        #subtitleStage.compact-viewport #historyLine,
+        .compact-viewport .history-line,
+        .compact-viewport #historyLine {
+            font-size: 12px !important;
+            line-height: 1.2 !important;
+            min-height: 0 !important;
+            transition: none !important;
         }
 
         .subtitle-stage.compact-viewport .active-line,
@@ -649,6 +686,7 @@
             <!-- 上方 68% 主译文区 (Primary Zone) -->
             <div class="zone-primary" id="zonePrimary">
                 <div class="subtitle-track zone-track primary-track" id="subtitleTrack">
+                    <div class="history-line" id="historyLine" aria-live="off" style="display: none;"></div>
                     <div class="active-line" id="activeLine" aria-live="polite">等待语音输入...</div>
                 </div>
             </div>
@@ -691,6 +729,7 @@
             const zoneAuxiliary = document.getElementById('zoneAuxiliary') || document.querySelector('.zone-auxiliary');
             const subtitleTrack = document.getElementById('subtitleTrack') || document.querySelector('.subtitle-track');
             const auxiliaryTrack = document.getElementById('auxiliaryTrack') || document.querySelector('.auxiliary-track');
+            const historyLine = document.getElementById('historyLine');
             const pastLine = document.getElementById('pastLine');
             const activeLine = document.getElementById('activeLine');
             const dragAnchorCorner = document.getElementById('drag-anchor-corner') || document.getElementById('drag-handle');
@@ -721,6 +760,7 @@
             window.hudCapsule = hudContainer;
             window.subtitleStage = subtitleStage;
             window.subtitleTrack = subtitleTrack;
+            window.historyLine = historyLine;
             window.pastLine = pastLine;
             window.activeLine = activeLine;
             window.dragHandle = dragHandle;
@@ -785,6 +825,8 @@
             let currentSentenceId = null;
             let currentSentenceSource = '';
             let sentenceHasTranslation = false;
+            let pendingFinalizedText = '';
+            let needsHistoryAnchor = false;
             let ws = null;
             let reconnectTimer = null;
             let reconnectDelay = 100;
@@ -816,10 +858,12 @@
                     subtitleStage.classList.add('compact-viewport');
                     if (activeLine && activeLine.style.fontSize) activeLine.style.fontSize = '';
                     if (pastLine && pastLine.style.fontSize) pastLine.style.fontSize = '';
+                    if (historyLine && historyLine.style.fontSize) historyLine.style.fontSize = '';
                 } else {
                     subtitleStage.classList.remove('compact-viewport');
                     if (activeLine && !activeLine.style.fontSize) activeLine.style.fontSize = `${currentFontSize}px`;
                     if (pastLine && !pastLine.style.fontSize) pastLine.style.fontSize = `${Math.max(11, currentFontSize - 5)}px`;
+                    if (historyLine && !historyLine.style.fontSize) historyLine.style.fontSize = `${Math.max(12, currentFontSize - 4)}px`;
                 }
 
                 // 智能适配：主译文区滚动基准严格以 #zonePrimary 实际视口高度为准
@@ -829,18 +873,18 @@
                 // 紧凑视口下双行译文自适应包络：2行舒适容纳时保持 translateY(0px) 且不启用 is-scrolled 遮罩
                 const twoLinesEnvelope = (isCompact && targetH >= 28) ? Math.max(targetH + 3, 40) : (targetH + 3);
                 if (isCompact && contentH <= twoLinesEnvelope) {
-                    subtitleTrack.style.transition = (smooth === false) ? 'none' : 'transform 0.16s cubic-bezier(0.16, 1, 0.3, 1)';
+                    subtitleTrack.style.transition = (smooth === false) ? 'none' : 'transform 0.08s cubic-bezier(0.16, 1, 0.3, 1)';
                     subtitleTrack.style.transform = 'translateY(0px)';
                     subtitleStage.classList.remove('is-scrolled');
                 } else {
                     const overflow = contentH - (targetH - BOTTOM_SAFE_MARGIN);
                     if (overflow > 0) {
                         const targetY = -overflow;
-                        subtitleTrack.style.transition = (smooth === false) ? 'none' : 'transform 0.16s cubic-bezier(0.16, 1, 0.3, 1)';
+                        subtitleTrack.style.transition = (smooth === false) ? 'none' : 'transform 0.08s cubic-bezier(0.16, 1, 0.3, 1)';
                         subtitleTrack.style.transform = `translateY(${targetY}px)`;
                         subtitleStage.classList.add('is-scrolled');
                     } else {
-                        subtitleTrack.style.transition = (smooth === false) ? 'none' : 'transform 0.16s cubic-bezier(0.16, 1, 0.3, 1)';
+                        subtitleTrack.style.transition = (smooth === false) ? 'none' : 'transform 0.08s cubic-bezier(0.16, 1, 0.3, 1)';
                         subtitleTrack.style.transform = 'translateY(0px)';
                         subtitleStage.classList.remove('is-scrolled');
                     }
@@ -854,10 +898,10 @@
                     if (auxH <= 0) {
                         auxiliaryTrack.style.transform = 'translateY(0px)';
                     } else if (auxOverflow > 0 && (!isCompact || auxContentH > 31)) {
-                        auxiliaryTrack.style.transition = (smooth === false) ? 'none' : 'transform 0.16s cubic-bezier(0.16, 1, 0.3, 1)';
+                        auxiliaryTrack.style.transition = (smooth === false) ? 'none' : 'transform 0.08s cubic-bezier(0.16, 1, 0.3, 1)';
                         auxiliaryTrack.style.transform = `translateY(-${auxOverflow}px)`;
                     } else {
-                        auxiliaryTrack.style.transition = (smooth === false) ? 'none' : 'transform 0.16s cubic-bezier(0.16, 1, 0.3, 1)';
+                        auxiliaryTrack.style.transition = (smooth === false) ? 'none' : 'transform 0.08s cubic-bezier(0.16, 1, 0.3, 1)';
                         auxiliaryTrack.style.transform = 'translateY(0px)';
                     }
                 }
@@ -872,9 +916,11 @@
                 if (!isCompact) {
                     activeLine.style.fontSize = `${currentFontSize}px`;
                     pastLine.style.fontSize = `${Math.max(11, currentFontSize - 5)}px`;
+                    if (historyLine) historyLine.style.fontSize = `${Math.max(12, currentFontSize - 4)}px`;
                 } else {
                     activeLine.style.fontSize = '';
                     pastLine.style.fontSize = '';
+                    if (historyLine) historyLine.style.fontSize = '';
                 }
                 safeSetStorage('qwen_hud_font_size', currentFontSize.toString());
                 updateScrollOffset(false);
@@ -969,12 +1015,18 @@
                 updateLangUi();
 
                 // 重置槽位提示
+                if (historyLine) {
+                    historyLine.textContent = '';
+                    historyLine.style.display = 'none';
+                }
                 pastLine.textContent = (currentChannel === 'en') ? '输入原文: [中文发言实时显示于此]' : 'Input Source: [English speech appears here]';
                 activeLine.textContent = (currentChannel === 'en') ? '已切换至中译英通道 (ZH ➔ EN)...' : '已切换至英译中通道 (EN ➔ ZH)...';
                 activeLine.classList.remove('streaming');
                 currentSentenceId = null;
                 currentSentenceSource = '';
                 sentenceHasTranslation = false;
+                pendingFinalizedText = '';
+                needsHistoryAnchor = false;
                 updateScrollOffset(false);
 
                 connectWs();
@@ -1018,25 +1070,30 @@
                 }
             }
 
-            // 8. requestAnimationFrame 批处理双行渲染引擎 (<0.05ms DOM 渲染开销)
+            // 8. 零延迟即时同步直写渲染引擎与 rAF 视口滚动跟随 (<0.05ms DOM 渲染开销)
             let pendingData = null;
-            let rafScheduled = false;
+            let rafScrollPending = false;
 
-            function scheduleSubtitleUpdate(data) {
-                pendingData = data;
-                resetInactivity();
-                if (!rafScheduled) {
-                    rafScheduled = true;
-                    requestAnimationFrame(renderSubtitleFrame);
+            function scheduleScrollOffset(smooth = true) {
+                if (!rafScrollPending) {
+                    rafScrollPending = true;
+                    requestAnimationFrame(() => {
+                        rafScrollPending = false;
+                        updateScrollOffset(smooth);
+                    });
                 }
             }
 
-            function renderSubtitleFrame() {
-                rafScheduled = false;
-                if (!pendingData) return;
+            function scheduleSubtitleUpdate(data) {
+                resetInactivity();
+                if (!data) return;
+                renderSubtitleFrame(data);
+            }
 
-                const data = pendingData;
+            function renderSubtitleFrame(directData) {
+                const data = directData || pendingData;
                 pendingData = null;
+                if (!data) return;
 
                 // 兼容 server.py {id, source, target, is_final, usage} 与标准 {type, text, cost}
                 const isSentenceStart = (data.type === 'sentence_start');
@@ -1054,21 +1111,17 @@
                 const secondarySource = sourceText || '';
 
                 // 新句子检测 (腾讯会议稳态视觉锚点与跨句隔离机制)
-                if (sentenceId !== null && sentenceId !== currentSentenceId) {
-                    currentSentenceId = sentenceId;
+                const isNewSentence = (sentenceId !== null && sentenceId !== currentSentenceId) || isSentenceStart;
+                if (isNewSentence) {
+                    currentSentenceId = (sentenceId !== null) ? sentenceId : ((currentSentenceId || 0) + 1);
                     currentSentenceSource = '';
                     sentenceHasTranslation = false;
-                    // 仅当处于历史单文本兼容流 (无 target/source 仅有 genericText) 时流转槽位；
-                    if (!targetText && !sourceText && genericText) {
-                        if (activeLine.textContent) {
-                            pastLine.textContent = activeLine.textContent;
-                        }
-                        activeLine.textContent = '';
+                    const prevFinalized = activeLine.textContent ? activeLine.textContent.trim() : '';
+                    if (prevFinalized && !prevFinalized.startsWith('等待') && !prevFinalized.startsWith('已切换') && !prevFinalized.startsWith('正在连接') && !prevFinalized.startsWith('已断开')) {
+                        pendingFinalizedText = prevFinalized;
+                        needsHistoryAnchor = true;
                     }
-                } else if (isSentenceStart) {
-                    currentSentenceId = (currentSentenceId || 0) + 1;
-                    currentSentenceSource = '';
-                    sentenceHasTranslation = false;
+                    // 仅当处于历史单文本兼容流 (无 target/source 仅有 genericText) 时流转槽位；
                     if (!targetText && !sourceText && genericText) {
                         if (activeLine.textContent) {
                             pastLine.textContent = activeLine.textContent;
@@ -1077,8 +1130,22 @@
                     }
                 }
 
-                // 新句已开始发言 (已收到原文，但新句译文仍在生成中)：
-                // 腾讯会议标准方案 A：主译文槽位显示动态流式光标 ▍，绝不残留或回跳上一句旧译文
+                // 新句已开始发言 (已收到原文，但新句译文仍在生成中，或新句译文到达前的边界状态)：
+                // 腾讯会议标准方案 A：主译文槽位显示动态流式光标 ▍，绝不残留或回跳上一句旧译文；
+                // 同时平滑锚定上一句定稿译文到 #historyLine 保持留存展示，解决连续说话时译文闪烁和瞬间消失问题
+                const hasNewContent = Boolean(sourceText || targetText || genericText);
+                if ((needsHistoryAnchor || (isNewSentence && hasNewContent)) && !sentenceHasTranslation && hasNewContent) {
+                    const candidateText = pendingFinalizedText || (activeLine.textContent ? activeLine.textContent.trim() : '');
+                    if (candidateText && !candidateText.startsWith('等待') && !candidateText.startsWith('已切换') && !candidateText.startsWith('正在连接') && !candidateText.startsWith('已断开')) {
+                        if (historyLine) {
+                            historyLine.textContent = candidateText;
+                            historyLine.style.display = 'block';
+                        }
+                    }
+                    pendingFinalizedText = '';
+                    needsHistoryAnchor = false;
+                }
+
                 if (sourceText && !targetText && !sentenceHasTranslation) {
                     activeLine.textContent = '';
                     activeLine.classList.add('streaming');
@@ -1133,8 +1200,8 @@
                     }
                 }
 
-                // 每次帧内容更新后，动态平滑计算视口滚动
-                updateScrollOffset(true);
+                // 每次帧内容更新后，使用 requestAnimationFrame 异步微批处理视口滚动跟随
+                scheduleScrollOffset(true);
             }
 
             // 9. 实时监听视口尺寸与自适应重算 (ResizeObserver - R3 & AC-20)
@@ -1455,6 +1522,10 @@
                     pastLine.style.color = t.auxColor;
                     pastLine.style.textShadow = t.shadow;
                 }
+                if (historyLine) {
+                    historyLine.style.color = t.auxColor;
+                    historyLine.style.textShadow = t.shadow;
+                }
                 if (themePill) {
                     themePill.textContent = t.label;
                     themePill.style.color = t.pillColor;
@@ -1569,6 +1640,9 @@
                 getZoneDivider: () => zoneDivider,
                 getPrimaryTrack: () => subtitleTrack,
                 getAuxiliaryTrack: () => auxiliaryTrack,
+                getHistoryLine: () => historyLine,
+                getActiveLine: () => activeLine,
+                getPastLine: () => pastLine,
                 getThemes: () => themes,
                 getTheme: () => themes[themeIdx],
                 applyTheme: applyTheme,
