@@ -104,20 +104,20 @@ class AdaptiveFarFieldAGC:
     Optimized for 1~2m far-field speech capture hot path (<0.015ms execution time).
 
     Parameters:
-    - target_rms: Target energy level (sweet spot: 1600.0)
-    - max_gain: Maximum gain ceiling (6.5x)
-    - noise_floor: Noise gate threshold (140.0 RMS). RMS < 140 is never amplified (gain = 1.0).
-    - soft_knee: Smooth transition knee between noise floor (140.0) and far-field speech (180.0).
+    - target_rms: Target energy level (sweet spot: 1200.0)
+    - max_gain: Maximum gain ceiling (3.2x)
+    - noise_floor: Noise gate threshold (240.0 RMS). RMS < 240 is never amplified (gain = 1.0).
+    - soft_knee: Smooth transition knee between noise floor (240.0) and far-field speech (280.0).
     - alpha: Exponential moving average (EMA) smoothing coefficient (0.30).
     - soft_limit: Anti-clipping saturation limit (31500). Clamps gain if peak * gain > 31500.
     """
 
     def __init__(
         self,
-        target_rms: float = 1600.0,
-        max_gain: float = 6.5,
-        noise_floor: float = 140.0,
-        soft_knee: float = 180.0,
+        target_rms: float = 1200.0,
+        max_gain: float = 3.2,
+        noise_floor: float = 240.0,
+        soft_knee: float = 280.0,
         alpha: float = 0.30,
         soft_limit: float = 31500.0,
     ):
@@ -190,18 +190,18 @@ class AdaptiveFarFieldAGC:
             rms = self._compute_rms(raw_pcm)
             peak = self._compute_peak(raw_pcm)
 
-        # 1. Noise Floor Gating: RMS < 140 is NOT amplified (gain = 1.0)
+        # 1. Noise Floor Gating: RMS < 240 is NOT amplified (gain = 1.0)
         if rms < self.noise_floor:
             self.last_gain = (1.0 - self.alpha) * self.last_gain + self.alpha * 1.0
             return raw_pcm
 
-        # 2. Soft Knee Transition (140 <= RMS < 180)
+        # 2. Soft Knee Transition (240 <= RMS < 280)
         elif rms < self.soft_knee:
             ratio = (rms - self.noise_floor) / (self.soft_knee - self.noise_floor)
             full_gain = min(self.max_gain, self.target_rms / self.soft_knee)
             target_gain = 1.0 + ratio * (full_gain - 1.0)
 
-        # 3. Far-Field Speech (180 <= RMS <= 2500): dynamically amplified to target RMS (>= 1000)
+        # 3. Far-Field Speech (280 <= RMS <= 2500): dynamically amplified to target RMS (>= 1000)
         elif rms <= 2500.0:
             target_gain = min(self.max_gain, max(1.0, self.target_rms / max(rms, 1.0)))
 
@@ -294,6 +294,9 @@ class FastAudioCaptureWorker:
         self.dropped_frames_count: int = 0
         self.overflow_count: int = 0
         self._device_cache: Dict[int, Dict[str, Any]] = {}
+        self._consecutive_errors: int = 0
+        self.error_threshold: int = 20
+        self.on_device_lost: Optional[Callable[["FastAudioCaptureWorker"], None]] = None
 
     def set_zero_copy_callback(self, cb: Optional[Callable[[bytes], None]]) -> None:
         """Register Track 1 direct binary PCM zero-copy callback."""
@@ -567,6 +570,9 @@ class FastAudioCaptureWorker:
                 if not raw_data:
                     continue
 
+                if self._consecutive_errors:
+                    self._consecutive_errors = 0
+
                 # Process frame (downmix if multi-channel + Adaptive Far-Field AGC)
                 raw_data = self.process_frame(raw_data)
 
@@ -583,7 +589,29 @@ class FastAudioCaptureWorker:
                 # Track 2: Drop-Oldest ring buffer push
                 self.push_to_json_queue(raw_data)
             except Exception:
-                time.sleep(0.01)
+                self._consecutive_errors += 1
+                if self._consecutive_errors >= self.error_threshold:
+                    self._consecutive_errors = 0
+                    with self.lock:
+                        old_stream = self.stream
+                        self.stream = None
+                        self.device_index = None
+                    if old_stream is not None:
+                        threading.Thread(target=self._async_close_stream, args=(old_stream,), daemon=True).start()
+                    cb_lost = self.on_device_lost
+                    if cb_lost is not None:
+                        try:
+                            cb_lost(self)
+                        except Exception:
+                            pass
+                    else:
+                        self._device_cache.clear()
+                        try:
+                            self.switch_device(None)
+                        except Exception:
+                            pass
+                else:
+                    time.sleep(0.01)
 
     def stop(self) -> None:
         """Stop worker and release audio stream."""
@@ -630,6 +658,10 @@ class FastAudioCaptureManager:
 
         self.p = pyaudio.PyAudio()
         self._device_cache: Dict[int, Dict[str, Any]] = {}
+        self._recovery_lock = threading.Lock()
+        self._recovering: bool = False
+        self._recovery_thread: Optional[threading.Thread] = None
+        self.status_fn: Optional[Callable[[str, str], None]] = None
 
         # Worker A: Channel A (Mic) - Enable Far-Field AGC
         self.worker_a = FastAudioCaptureWorker(
@@ -640,6 +672,7 @@ class FastAudioCaptureManager:
             shared_pyaudio=self.p,
             enable_agc=True,
         )
+        self.worker_a.on_device_lost = self._on_worker_device_lost
 
         # Worker B: Channel B (Virtual Loopback) - Disable AGC (digital line level)
         self.worker_b = FastAudioCaptureWorker(
@@ -650,6 +683,7 @@ class FastAudioCaptureManager:
             shared_pyaudio=self.p,
             enable_agc=False,
         )
+        self.worker_b.on_device_lost = self._on_worker_device_lost
 
         # Pre-open default input on Channel A for sub-35ms initial responsiveness
         try:
@@ -673,6 +707,92 @@ class FastAudioCaptureManager:
                     self.on_audio_chunk(b64)
 
             self.worker_a.set_zero_copy_callback(_legacy_bridge)
+
+    def _on_worker_device_lost(self, worker: FastAudioCaptureWorker) -> None:
+        """Handle physical device disconnect from Worker A or Worker B with serialized recovery."""
+        with self._recovery_lock:
+            if self._recovering:
+                return
+            self._recovering = True
+
+        cb = self.status_fn
+        if cb is not None:
+            try:
+                cb("device_lost", "输入设备已断开，正在切换到默认麦克风…")
+            except Exception:
+                pass
+
+        t = threading.Thread(
+            target=self._run_recovery_loop,
+            daemon=True,
+            name="AudioDeviceRecovery",
+        )
+        self._recovery_thread = t
+        t.start()
+
+    def _attempt_recovery_once(self) -> bool:
+        """Clear stale device caches, refresh shared PyAudio if needed, and rebind default devices."""
+        for w in (self.worker_a, self.worker_b):
+            with w.lock:
+                old_s = w.stream
+                w.stream = None
+                w.device_index = None
+            if old_s is not None:
+                threading.Thread(target=w._async_close_stream, args=(old_s,), daemon=True).start()
+
+        self._device_cache.clear()
+        self.worker_a._device_cache.clear()
+        self.worker_b._device_cache.clear()
+
+        old_p = self.p
+        try:
+            old_p.terminate()
+        except Exception:
+            pass
+        try:
+            new_p = pyaudio.PyAudio()
+            if new_p is not None:
+                self.p = new_p
+        except Exception:
+            pass
+
+        self.worker_a.p = self.p
+        self.worker_b.p = self.p
+
+        res_a = self.worker_a.switch_device(None)
+        try:
+            self.worker_b.switch_device(None)
+        except Exception:
+            self.worker_b.is_idle = True
+
+        return res_a.get("status") == "ok" or (not self.worker_a.is_running and self.worker_b.is_idle)
+
+    def _run_recovery_loop(self) -> None:
+        """Attempt immediate default-device fallback, then retry with 1s -> 2s -> 3s backoff."""
+        delays = [0.0, 1.0, 2.0, 3.0]
+        attempt = 0
+        try:
+            while True:
+                delay = delays[min(attempt, len(delays) - 1)]
+                if delay > 0:
+                    time.sleep(delay)
+                attempt += 1
+                try:
+                    if self._attempt_recovery_once():
+                        cb = self.status_fn
+                        if cb is not None:
+                            try:
+                                cb("device_recovered", "")
+                            except Exception:
+                                pass
+                        return
+                except Exception:
+                    pass
+                if not self.is_running:
+                    return
+        finally:
+            with self._recovery_lock:
+                self._recovering = False
 
     @property
     def active_stream(self) -> Optional[pyaudio.Stream]:
@@ -721,11 +841,17 @@ class FastAudioCaptureManager:
                 return {"index": index, "name": f"Unknown {index}", "maxInputChannels": 0, "error": str(e)}
         return self._device_cache[index]
 
-    def get_devices(self) -> Dict[str, Any]:
+    def get_devices(self, refresh: bool = False) -> Dict[str, Any]:
         """
         Enumerate all input devices, flagging is_loopback=True/False,
         channels, sample rates, and default input.
         """
+        if refresh:
+            with self._recovery_lock:
+                if not self._recovering:
+                    self._device_cache.clear()
+                    self.worker_a._device_cache.clear()
+                    self.worker_b._device_cache.clear()
         device_list: List[Dict[str, Any]] = []
         default_index = None
         try:

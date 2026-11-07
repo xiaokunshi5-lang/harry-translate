@@ -4,8 +4,14 @@ Verifies double-clickable launch scripts: macOS 启动悬浮同传.command,
 Windows 启动悬浮同传.bat, 启动同传系统.bat, and 切换API_Key.bat.
 """
 import os
+import sys
 import stat
-from tests.harness import BaseE2ETest, ScriptInspector, PROJECT_ROOT
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from tests.harness import BaseE2ETest, ScriptInspector
 
 
 class TestFeature16LaunchScripts(BaseE2ETest):
@@ -49,3 +55,9 @@ class TestFeature16LaunchScripts(BaseE2ETest):
         self.assertTrue(os.path.exists(path), "Missing Windows 切换API_Key.bat")
         content = ScriptInspector.get_content("切换API_Key.bat")
         self.assertIn("switch_key.py", content)
+
+
+if __name__ == "__main__":
+    import unittest
+    unittest.main()
+

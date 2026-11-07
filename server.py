@@ -61,6 +61,9 @@ from engines.qwen_translators import (
     GummyZeroCopyEngine,
     QwenLiveTranslate38Engine,
     TokenBucketLimiter,
+    INPUT_TOKEN_UNIT_PRICE,
+    OUTPUT_TOKEN_UNIT_PRICE,
+    get_token_unit_prices,
 )
 
 # Load .env
@@ -72,6 +75,7 @@ QWEN_REALTIME_WS_URL = os.getenv(
     "QWEN_REALTIME_WS_URL",
     "wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=qwen3.8-livetranslate-flash-realtime",
 )
+HOST = os.getenv("HOST", "127.0.0.1")
 PORT = int(os.getenv("PORT", "8000"))
 
 DEFAULT_ENGINE = os.getenv("DEFAULT_ENGINE") or os.getenv("ACTIVE_ENGINE") or "qwen3.8-livetranslate-flash-realtime"
@@ -178,9 +182,10 @@ def set_env_value(key: str, value: str) -> None:
         os.replace(tmp, ENV_FILE)
 
 
-# ---------------------------------------------------------------------------
-# ChannelSession (Dual-Engine Decoupled Channel)
-# ---------------------------------------------------------------------------
+def is_cjk(text: str) -> bool:
+    return any("\u4e00" <= c <= "\u9fff" for c in (text or ""))
+
+
 class ChannelSession:
     """
     Channel session managing translation pipelines, token usage,
@@ -217,6 +222,9 @@ class ChannelSession:
         self.sentence_id = 0
         self.source_text = ""
         self.target_text = ""
+        self.engine_status = {"state": "idle", "detail": ""}
+        self._key_update_lock = threading.Lock()
+        self._latest_api_key: str = DASHSCOPE_API_KEY
 
         # Translation engines
         self.gummy_engine = GummyZeroCopyEngine(
@@ -235,6 +243,8 @@ class ChannelSession:
             api_key=DASHSCOPE_API_KEY,
             ws_url=QWEN_REALTIME_WS_URL,
         )
+        self.gummy_engine.status_fn = self._on_engine_status
+        self.qwen_engine.status_fn = self._on_engine_status
 
         self.active_engine_type = active_engine_type
         if "qwen" in self.active_engine_type.lower():
@@ -245,25 +255,88 @@ class ChannelSession:
         # Inject initial hotwords into cloud engine sessions
         self.sync_hotwords()
 
-    def sync_hotwords(self, hotwords: Optional[List[str]] = None) -> List[str]:
-        """Inject domain hotwords into cloud translation engines."""
+    def _on_engine_status(self, state: str, detail: str = "") -> None:
+        self.engine_status = {"state": state, "detail": detail}
+        payload = {"type": "engine_status", "channel": self.name, "state": state, "detail": detail}
+        if main_loop and main_loop.is_running():
+            asyncio.run_coroutine_threadsafe(broadcast_to_channel(self.name, payload), main_loop)
+
+    def sync_hotwords(
+        self,
+        hotwords: Optional[Union[List[str], Dict[str, str], str]] = None,
+        corpus_phrases: Optional[Dict[str, str]] = None,
+    ) -> List[str]:
+        """Inject domain hotwords and structured corpus phrases into cloud translation engines."""
+        explicit_hotwords = hotwords is not None
         if hotwords is None:
             hotwords = glossary_mgr.get_hotwords(channel=self.name)
+        elif isinstance(hotwords, str):
+            s = hotwords.strip()
+            hotwords = [s] if s else []
+
+        if corpus_phrases is None:
+            if isinstance(hotwords, dict):
+                corpus_phrases = dict(hotwords)
+            else:
+                corpus_phrases = glossary_mgr.get_corpus_phrases(
+                    channel=self.name,
+                    target_lang=self.target_lang,
+                    limit=48,
+                )
+
         if hasattr(self.qwen_engine, "live_update_session"):
             try:
-                self.qwen_engine.live_update_session(self.target_lang, hotwords)
+                self.qwen_engine.live_update_session(
+                    self.target_lang,
+                    hotwords=hotwords if explicit_hotwords else None,
+                    corpus_phrases=corpus_phrases,
+                )
             except Exception:
                 pass
-        elif hasattr(self.qwen_engine, "hotwords"):
-            self.qwen_engine.hotwords = list(hotwords)
+        if hasattr(self.qwen_engine, "hotwords"):
+            if explicit_hotwords:
+                if isinstance(hotwords, dict):
+                    self.qwen_engine.hotwords = list(hotwords.keys())
+                elif isinstance(hotwords, (list, tuple, set)):
+                    parsed_hw = []
+                    for item in hotwords:
+                        if item is not None:
+                            s = str(item).strip()
+                            if s:
+                                for sep in (":", "->", "="):
+                                    if sep in s:
+                                        s = s.split(sep, 1)[0].strip()
+                                        break
+                                if s:
+                                    parsed_hw.append(s)
+                    self.qwen_engine.hotwords = parsed_hw
+                else:
+                    s = str(hotwords).strip()
+                    for sep in (":", "->", "="):
+                        if sep in s:
+                            s = s.split(sep, 1)[0].strip()
+                            break
+                    self.qwen_engine.hotwords = [s] if s else []
+
         if hasattr(self.gummy_engine, "set_hotwords"):
             try:
-                self.gummy_engine.set_hotwords(hotwords)
+                self.gummy_engine.set_hotwords(hotwords, corpus_phrases=corpus_phrases)
             except Exception:
                 pass
         elif hasattr(self.gummy_engine, "hotwords"):
-            self.gummy_engine.hotwords = list(hotwords)
-        return hotwords
+            if isinstance(hotwords, dict):
+                self.gummy_engine.hotwords = list(hotwords.keys())
+            elif isinstance(hotwords, (list, tuple, set)):
+                self.gummy_engine.hotwords = list(hotwords)
+            else:
+                self.gummy_engine.hotwords = [str(hotwords)]
+
+        if isinstance(hotwords, dict):
+            return list(hotwords.keys())
+        elif isinstance(hotwords, (list, tuple, set)):
+            return list(hotwords)
+        else:
+            return [str(hotwords)]
 
     def _on_engine_emit(self, payload: Dict[str, Any]) -> None:
         sid = payload.get("id", self.sentence_id)
@@ -271,6 +344,7 @@ class ChannelSession:
         tgt = payload.get("target", "")
         is_final = payload.get("is_final", False)
         lat = payload.get("latency_ms", 0)
+        ttft = payload.get("ttft_ms", 0)
 
         with self.state_lock:
             incoming_sid = None
@@ -295,6 +369,7 @@ class ChannelSession:
                 self.target_text = ""
 
             # Token usage calculation
+            in_unit, out_unit = get_token_unit_prices()
             if "usage" in payload and isinstance(payload["usage"], dict):
                 u = payload["usage"]
                 in_tok = u.get("input_tokens", 0)
@@ -303,16 +378,16 @@ class ChannelSession:
                     self.input_tokens += in_tok
                     self.output_tokens += out_tok
                     self.total_tokens += (in_tok + out_tok)
-                    self.cost_rmb = (self.input_tokens * 0.00004) + (self.output_tokens * 0.0001)
+                    self.cost_rmb = (self.input_tokens * in_unit) + (self.output_tokens * out_unit)
             elif is_final and self.total_tokens == 0:
                 in_t = max(1, len(self.source_text) * 2) if self.source_text else 0
                 out_t = max(1, len(self.target_text) * 2) if self.target_text else 0
                 self.input_tokens += in_t
                 self.output_tokens += out_t
                 self.total_tokens += (in_t + out_t)
-                self.cost_rmb = (self.input_tokens * 0.00004) + (self.output_tokens * 0.0001)
+                self.cost_rmb = (self.input_tokens * in_unit) + (self.output_tokens * out_unit)
 
-        self.dispatch(self.sentence_id, self.source_text, self.target_text, is_final, lat)
+        self.dispatch(self.sentence_id, self.source_text, self.target_text, is_final, lat, ttft)
 
     def dispatch(
         self,
@@ -321,8 +396,9 @@ class ChannelSession:
         target: str,
         is_final: bool,
         latency_ms: int = 0,
+        ttft_ms: int = 0,
     ) -> Dict[str, Any]:
-        """Schedule parallel broadcast onto main event loop with glossary sanitization."""
+        """Schedule parallel broadcast onto main event loop with glossary sanitization and symmetric mirror."""
         global main_loop
         clean_source, clean_target = glossary_mgr.apply_fixes(
             source or "", target or "", channel=self.name
@@ -340,6 +416,7 @@ class ChannelSession:
             "target": clean_target,
             "is_final": is_final,
             "latency_ms": latency_ms,
+            "ttft_ms": ttft_ms,
             "usage": {
                 "input_tokens": self.input_tokens,
                 "output_tokens": self.output_tokens,
@@ -347,9 +424,59 @@ class ChannelSession:
                 "cost_rmb": round(self.cost_rmb, 4),
             },
         }
+
+        # Same-language echo & untranslated source-flash suppression:
+        # 1. channel_zh (en->zh): whenever input speech (clean_source) is Chinese (CJK),
+        #    it is same-language mic echo (even if model echoed Chinese into clean_target).
+        # 2. channel_en (zh->en): whenever input speech (clean_source) is non-CJK (English)
+        #    and clean_target is empty or non-CJK, it is same-language mic echo.
+        # 3. channel_en (zh->en): if clean_source is CJK and clean_target is ALSO pure CJK
+        #    (no ASCII letters, i.e. model momentarily echoed Chinese before translating),
+        #    clear clean_target in broadcast payload so win_en (#activeLine) NEVER flashes Chinese!
+        is_echo = False
+        if self.name == "zh" and is_cjk(clean_source):
+            is_echo = True
+        elif self.name == "en" and clean_source.strip() and not is_cjk(clean_source) and (
+            not clean_target.strip() or not is_cjk(clean_target)
+        ):
+            is_echo = True
+
+        if is_echo:
+            return payload
+
+        pause_ms = getattr(self.qwen_engine, "last_pause_ms", None)
+        if pause_ms is not None:
+            payload["pause_ms"] = pause_ms
+
+        if self.name == "en" and is_cjk(clean_source) and clean_target.strip() and is_cjk(clean_target) and not re.search(r"[A-Za-z]{2,}", clean_target):
+            payload["target"] = ""
+
         if main_loop and main_loop.is_running():
+            # 1. Broadcast to own channel
             asyncio.run_coroutine_threadsafe(
                 broadcast_to_channel(self.name, payload),
+                main_loop,
+            )
+
+            # 2. Symmetrically broadcast mirrored frame to peer channel at WebSocket layer
+            peer_name = "zh" if self.name == "en" else "en"
+            peer_ch = "B" if self.channel_id == "A" else "A"
+            mirrored_id = (100000 + int(sentence_id)) if str(sentence_id).isdigit() else f"100000_{sentence_id}"
+            mirrored_payload = {
+                "type": "sub",
+                "channel": peer_name,
+                "ch": peer_ch,
+                "id": mirrored_id,
+                "source": clean_target,
+                "target": clean_source,
+                "is_final": is_final,
+                "latency_ms": latency_ms,
+                "ttft_ms": ttft_ms,
+                "pause_ms": payload.get("pause_ms"),
+                "usage": payload["usage"],
+            }
+            asyncio.run_coroutine_threadsafe(
+                broadcast_to_channel(peer_name, mirrored_payload),
                 main_loop,
             )
         return payload
@@ -437,16 +564,32 @@ class ChannelSession:
         self.sync_hotwords()
 
     def update_api_key(self, new_key: str) -> None:
-        self.gummy_engine.api_key = new_key
-        self.qwen_engine.api_key = new_key
+        self._latest_api_key = new_key
+        for eng in (self.gummy_engine, self.qwen_engine):
+            eng.api_key = new_key
+            if getattr(eng, "_mock_forced_by_key", False):
+                eng.mock_mode = False
+                eng._mock_forced_by_key = False
+        active = self.active_engine
+        if hasattr(active, "update_api_key"):
+            def _apply_in_background():
+                with self._key_update_lock:
+                    target_key = self._latest_api_key
+                    if hasattr(active, "update_api_key"):
+                        active.update_api_key(target_key)
+
+            threading.Thread(
+                target=_apply_in_background,
+                daemon=True,
+                name=f"KeyApply-{self.name}",
+            ).start()
 
     def set_target_lang(self, new_target: str) -> None:
         with self.state_lock:
             self.target_lang = new_target
-            self.gummy_engine.target_lang = new_target
-        if hasattr(self.qwen_engine, "live_update_session"):
-            hotwords = glossary_mgr.get_hotwords(channel=self.name)
-            self.qwen_engine.live_update_session(target_lang=new_target, hotwords=hotwords)
+            if hasattr(self.gummy_engine, "target_lang"):
+                self.gummy_engine.target_lang = new_target
+        self.sync_hotwords()
 
     def simulate_event(
         self,
@@ -455,6 +598,7 @@ class ChannelSession:
         is_final: bool = False,
         latency_ms: int = 50,
         sentence_id: Optional[int] = None,
+        ttft_ms: int = 0,
     ) -> Dict[str, Any]:
         """Simulation interface for automated test execution."""
         with self.state_lock:
@@ -470,7 +614,9 @@ class ChannelSession:
             sid = self.sentence_id
             self.source_text = source or ""
             self.target_text = target or ""
-        return self.dispatch(sid, source, target, is_final, latency_ms)
+        return self.dispatch(sid, source, target, is_final, latency_ms, ttft_ms)
+
+    emit_mock_sub = simulate_event
 
     def start(self, api_key: Optional[str] = None) -> None:
         key = api_key or DASHSCOPE_API_KEY
@@ -513,6 +659,22 @@ audio_capture_mgr = FastAudioCaptureManager(
     on_audio_chunk=handle_audio_chunk,
 )
 
+
+def _on_audio_device_status(state: str, detail: str = "") -> None:
+    """Propagate physical audio device disconnect/recovery status to active HUD channels."""
+    for ch in active_channels:
+        try:
+            ch._on_engine_status(state, detail)
+        except Exception:
+            pass
+
+
+audio_capture_mgr.status_fn = _on_audio_device_status
+
+_client_first_connected_at: float = 0.0
+STARTUP_SUBSCRIPTION_GRACE_SEC: float = 5.0
+
+
 def is_channel_subscribed(channel_key: str) -> bool:
     """
     Client-Aware Stream Gating:
@@ -521,12 +683,21 @@ def is_channel_subscribed(channel_key: str) -> bool:
     returns True to avoid starving unmonitored tests or audio pipelines.
     When only one channel is active (e.g., student in English tutoring only listening to 'zh'),
     audio streaming to the other channel is completely gated, cutting Cloud API token costs by 50%.
+    During client connection startup grace period (5.0s), returns True to prevent startup audio loss.
     """
     clients = connected_clients.get(channel_key)
     if clients and len(clients) > 0:
         return True
     all_connected = sum(len(c) for c in connected_clients.values())
-    return all_connected == 0
+    if all_connected == 0:
+        return True
+
+    # Real client connection grace period
+    now = time.time()
+    if _client_first_connected_at > 0 and (now - _client_first_connected_at) < STARTUP_SUBSCRIPTION_GRACE_SEC:
+        return True
+
+    return False
 
 
 # Wire zero-copy physical callbacks with Client-Aware Stream Gating
@@ -594,11 +765,14 @@ app = FastAPI(title="Harry Translate 国际会议实时双语同传系统", life
 @app.websocket("/ws/{channel}")
 async def websocket_channel_endpoint(websocket: WebSocket, channel: str):
     """Client connection endpoint for /ws/en and /ws/zh."""
+    global _client_first_connected_at
     if channel not in connected_clients:
         await websocket.close(code=1003)
         return
 
     await websocket.accept()
+    if sum(len(c) for c in connected_clients.values()) == 0:
+        _client_first_connected_at = time.time()
     connected_clients[channel].add(websocket)
     try:
         while True:
@@ -607,6 +781,10 @@ async def websocket_channel_endpoint(websocket: WebSocket, channel: str):
         connected_clients[channel].discard(websocket)
     except Exception:
         connected_clients[channel].discard(websocket)
+    finally:
+        connected_clients[channel].discard(websocket)
+        if sum(len(c) for c in connected_clients.values()) == 0:
+            _client_first_connected_at = 0.0
 
 
 @app.websocket("/ws")
@@ -742,6 +920,11 @@ def get_meta():
                 "label": channel_zh.label,
             },
         },
+        "api_key_configured": bool(masked_key),
+        "engine_status": {
+            "en": channel_en.engine_status,
+            "zh": channel_zh.engine_status,
+        },
     })
 
 
@@ -761,6 +944,11 @@ def get_config():
         "channel_b_idle": devices_info.get("channel_b_idle", False),
         "target_lang_a": channel_en.target_lang,
         "target_lang_b": channel_zh.target_lang,
+        "api_key_configured": bool(masked_key),
+        "engine_status": {
+            "en": channel_en.engine_status,
+            "zh": channel_zh.engine_status,
+        },
     })
 
 
@@ -863,9 +1051,18 @@ async def post_config(request: Request):
 # Audio Device Management Endpoints
 # ---------------------------------------------------------------------------
 @app.get("/api/audio/devices")
-def get_audio_devices():
+def get_audio_devices(refresh: Optional[str] = None):
     """Get all available audio input devices (microphones & virtual loopbacks)."""
-    devices_info = audio_capture_mgr.get_devices()
+    should_refresh = str(refresh or "").strip().lower() in ("1", "true", "yes")
+    if should_refresh:
+        try:
+            devices_info = audio_capture_mgr.get_devices(refresh=True)
+        except TypeError:
+            if hasattr(audio_capture_mgr, "_device_cache"):
+                audio_capture_mgr._device_cache.clear()
+            devices_info = audio_capture_mgr.get_devices()
+    else:
+        devices_info = audio_capture_mgr.get_devices()
     return JSONResponse(content=devices_info)
 
 
@@ -1318,7 +1515,7 @@ async def post_glossary_check_conflict(request: Request):
 # ---------------------------------------------------------------------------
 def main():
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="warning")
+    uvicorn.run(app, host=HOST, port=PORT, log_level="warning")
 
 
 if __name__ == "__main__":

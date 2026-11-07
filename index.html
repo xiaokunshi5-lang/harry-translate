@@ -1206,9 +1206,53 @@
             opacity: 1;
             pointer-events: auto;
         }
+
+        /* R3: 协议诊断告警横幅样式 */
+        .protocol-warning-banner {
+            background: linear-gradient(90deg, #b91c1c, #c2410c);
+            color: #ffffff;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            position: relative;
+            z-index: 10000;
+        }
+        .protocol-warning-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            text-align: center;
+        }
+        .btn-warning-redirect {
+            background: #fef08a;
+            color: #854d0e;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-weight: 700;
+            text-decoration: underline;
+            transition: all 0.2s ease;
+        }
+        .btn-warning-redirect:hover {
+            background: #ffffff;
+            color: #000000;
+        }
     </style>
 </head>
 <body style="--src-font: 24px; --trans-font: 36px;">
+
+    <!-- R3: 本地 file:// 协议与网络异常诊断横幅 -->
+    <div id="protocol-warning-banner" class="protocol-warning-banner" style="display: none;">
+        <div class="protocol-warning-content">
+            <span class="warning-icon">⚠️</span>
+            <span class="warning-text">检测到当前正在以本地文件 (file://) 形式打开页面，浏览器安全沙箱限制将导致接口与实时同传失效。</span>
+            <span class="warning-guide">请先启动后端服务，并在浏览器地址栏访问：</span>
+            <a href="http://127.0.0.1:8000" class="btn-warning-redirect" id="file-protocol-redirect-link">http://127.0.0.1:8000</a>
+        </div>
+    </div>
 
     <header>
         <div class="header-left">
@@ -1586,6 +1630,66 @@
     <div id="toast-notification" class="toast-notification"></div>
 
     <script>
+        // R3: 协议诊断与网络异常回退 (file:// 告警与 localhost -> 127.0.0.1 自动回退)
+        let _localhostFallbackActive = false;
+
+        function checkProtocolDiagnostic() {
+            if (window.location.protocol === "file:") {
+                const banner = document.getElementById("protocol-warning-banner");
+                if (banner) {
+                    banner.style.display = "block";
+                }
+            }
+        }
+        checkProtocolDiagnostic();
+
+        // 智能网络回退：当 localhost 受阻时自动切换并重试 127.0.0.1
+        const _nativeFetch = window.fetch;
+        window.fetch = async function(resource, init) {
+            let url = typeof resource === "string" ? resource : (resource && resource.url ? resource.url : "");
+            const port = window.location.port || "8000";
+            const scheme = window.location.protocol === "https:" ? "https:" : "http:";
+
+            const buildFallback = (u) => {
+                if (u.startsWith("/")) {
+                    return `${scheme}//127.0.0.1:${port}${u}`;
+                }
+                return u.replace("localhost", "127.0.0.1");
+            };
+
+            if (_localhostFallbackActive && (url.startsWith("/") || url.includes("localhost"))) {
+                const targetUrl = buildFallback(url);
+                if (typeof resource === "string") {
+                    return _nativeFetch(targetUrl, init);
+                } else if (resource instanceof Request) {
+                    return _nativeFetch(new Request(targetUrl, resource));
+                }
+                return _nativeFetch(targetUrl, init);
+            }
+
+            try {
+                return await _nativeFetch(resource, init);
+            } catch (err) {
+                const isLocalhostEnv = window.location.hostname === "localhost" || url.includes("localhost");
+                if (isLocalhostEnv) {
+                    console.warn(`[Network Diagnostic] localhost 请求受阻，正在自动回退至 127.0.0.1: ${url}`);
+                    _localhostFallbackActive = true;
+                    const fallbackUrl = buildFallback(url);
+                    try {
+                        if (typeof resource === "string") {
+                            return await _nativeFetch(fallbackUrl, init);
+                        } else if (resource instanceof Request) {
+                            return await _nativeFetch(new Request(fallbackUrl, resource));
+                        }
+                        return await _nativeFetch(fallbackUrl, init);
+                    } catch (fallbackErr) {
+                        throw err;
+                    }
+                }
+                throw err;
+            }
+        };
+
         // AC-14: 严格锁定 50 节点滑动循环窗口（防长时会议 DOM 膨胀与内存泄漏）
         const MAX_CARDS = 50;
 
@@ -1675,17 +1779,36 @@
             }
 
             connect(dotElem, statusElem, statusPrefix) {
+                this._dot = dotElem;
+                this._status = statusElem;
+                this._prefix = statusPrefix;
                 const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-                this.ws = new WebSocket(`${protocol}//${location.host}/ws/${this.channel}`);
+                let host = location.host;
+                if (_localhostFallbackActive && (location.hostname === "localhost" || !location.hostname)) {
+                    host = `127.0.0.1:${location.port || 8000}`;
+                }
+                this.ws = new WebSocket(`${protocol}//${host}/ws/${this.channel}`);
+
+                this.ws.onerror = () => {
+                    if ((location.hostname === "localhost" || !location.hostname) && !_localhostFallbackActive) {
+                        console.warn("[Network Diagnostic] WebSocket 连接受阻，自动回退至 127.0.0.1...");
+                        _localhostFallbackActive = true;
+                    }
+                };
 
                 this.ws.onopen = () => {
                     if (dotElem) dotElem.classList.add("connected");
                     if (statusElem) statusElem.textContent = `${statusPrefix}已就绪 (正在监听麦克风)`;
+                    fetch("/api/meta").then(r => r.ok ? r.json() : null).then(meta => {
+                        const st = meta && meta.engine_status && meta.engine_status[this.channel] && meta.engine_status[this.channel].state;
+                        if (st) this.applyEngineStatus(st);
+                    }).catch(() => {});
                 };
 
                 this.ws.onmessage = (event) => {
                     try {
                         const data = JSON.parse(event.data);
+                        if (data.type === 'engine_status') { this.applyEngineStatus(data.state); return; }
                         this.handleSubtitle(data);
                         if (data.usage) {
                             // 收到当句 usage 时定期刷新全局统计
@@ -1703,19 +1826,74 @@
                 };
             }
 
+            applyEngineStatus(state) {
+                if (!state) return;
+                const normState = (state === "device_recovered") ? "ready" : state;
+                const prefix = this._prefix || "";
+                if (normState === "ready" || normState === "mock") {
+                    if (this._dot) this._dot.classList.add("connected");
+                    if (this._status) this._status.textContent = `${prefix}已就绪 (正在监听麦克风)`;
+                } else if (normState === "no_key") {
+                    if (this._dot) this._dot.classList.remove("connected");
+                    if (this._status) this._status.textContent = `${prefix}未配置 API Key（请点设置填入）`;
+                } else if (normState === "auth_failed") {
+                    if (this._dot) this._dot.classList.remove("connected");
+                    if (this._status) this._status.textContent = `${prefix}API Key 无效或欠费`;
+                } else if (normState === "device_lost") {
+                    if (this._dot) this._dot.classList.remove("connected");
+                    if (this._status) this._status.textContent = `${prefix}等待音频设备：输入设备已断开，正在切换到默认麦克风…`;
+                } else if (normState === "connecting" || normState === "network_error" || normState === "rate_limited") {
+                    if (this._dot) this._dot.classList.remove("connected");
+                    if (this._status) this._status.textContent = `${prefix}云端连接中，自动重试…`;
+                }
+            }
+
             handleSubtitle(data) {
                 const placeholder = this.container.querySelector(".empty-placeholder");
                 if (placeholder) placeholder.remove();
 
-                // 1. 新句子生命周期处理
-                if (data.id !== this.currentSentenceId || !this.activeCard) {
+                const cardId = String((data.id !== undefined && data.id !== null) ? data.id : ("sent_" + Date.now()));
+                const normSrc = (data.source || "").trim();
+                const normTgt = (data.target || "").trim();
+
+                // 忽略纯空边界帧，避免产生无意义的空白占位卡片
+                if (!normSrc && !normTgt) {
+                    return;
+                }
+
+                // 1. 查找既有卡片：优先根据 cardId 从 activeNodeMap 索引中复用
+                let existingCard = this.activeNodeMap.get(cardId);
+
+                // 2. 若 activeNodeMap 未命中，检查容器末尾最新卡片是否同源或互为前缀扩展
+                if (!existingCard && this.container.lastElementChild) {
+                    const lastCard = this.container.lastElementChild;
+                    if (lastCard && lastCard._srcNode) {
+                        const lastSrc = (lastCard._srcNode.textContent || "").trim();
+                        if (normSrc && lastSrc && (normSrc === lastSrc || normSrc.startsWith(lastSrc) || lastSrc.startsWith(normSrc))) {
+                            existingCard = lastCard;
+                            this.activeNodeMap.set(cardId, existingCard);
+                        }
+                    }
+                }
+
+                if (existingCard) {
+                    if (this.activeCard && this.activeCard !== existingCard) {
+                        this.activeCard.classList.remove("current-active");
+                    }
+                    this.currentSentenceId = data.id;
+                    this.activeCard = existingCard;
+                    if (!data.is_final) {
+                        this.activeCard.classList.add("current-active");
+                    }
+                } else {
+                    // 确实是全新句子生命周期
                     if (this.activeCard) {
                         this.activeCard.classList.remove("current-active");
                     }
                     this.currentSentenceId = data.id;
                     this.activeCard = document.createElement("div");
                     this.activeCard.className = "sentence-card current-active";
-                    this.activeCard.dataset.id = data.id || ("sent_" + Date.now());
+                    this.activeCard.dataset.id = cardId;
 
                     // 构建并直接缓存子节点引用，杜绝后续重排查询
                     const srcDiv = document.createElement("div");
@@ -1752,7 +1930,6 @@
                 // 3. 定稿状态标记
                 if (data.is_final) {
                     this.activeCard.classList.remove("current-active");
-                    this.activeCard = null;
                 }
 
                 // 4. requestAnimationFrame 滚动节流

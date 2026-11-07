@@ -34,7 +34,7 @@ FEATURE_MAP = {
     14: {"name": "Dual-Mode Click-Through Locking", "milestone": "M3"},
     15: {"name": "Cold Start & Low Resource Footprint", "milestone": "M3"},
     16: {"name": "Cross-Platform Launch Scripts", "milestone": "M4"},
-    17: {"name": "Safe Version Recovery Guidance", "milestone": "M4"},
+    17: {"name": "1-Second Automated Rollback", "milestone": "M4"},
     18: {"name": "Dual-Track Acceptance Verification", "milestone": "M5"},
 }
 

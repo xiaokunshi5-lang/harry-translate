@@ -47,10 +47,7 @@ class FastAPITestClient:
         query_params: Optional[Dict[str, Any]] = None,
         json_data: Optional[Any] = None,
         body_bytes: Optional[bytes] = None,
-        **kwargs
     ) -> ASGIResponse:
-        if "json" in kwargs and kwargs["json"] is not None:
-            json_data = kwargs["json"]
         method = method.upper()
         norm_headers = []
         if headers:
@@ -205,7 +202,7 @@ class DesktopAppInspector:
 
 
 class ScriptInspector:
-    """Inspects launch and maintenance scripts."""
+    """Inspects launch and rollback scripts."""
     @staticmethod
     def get_content(filename: str) -> Optional[str]:
         path = os.path.join(PROJECT_ROOT, filename)
@@ -237,7 +234,7 @@ class BaseE2ETest(unittest.TestCase):
         elif self.milestone == "M3":
             return os.path.exists(os.path.join(PROJECT_ROOT, "float_app.py"))
         elif self.milestone == "M4":
-            return os.path.exists(os.path.join(PROJECT_ROOT, "start.sh"))
+            return os.path.exists(os.path.join(PROJECT_ROOT, "rollback.sh"))
         elif self.milestone == "M5":
             return True
         return True

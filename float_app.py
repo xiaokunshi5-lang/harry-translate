@@ -73,10 +73,32 @@ if sys.platform == "darwin":
 HUDPanelHost = None
 HUDWebKitHost = None
 if sys.platform == "darwin" and _pyobjc_available:
+    import objc as _pyobjc
     from objc import super as objc_super
     try:
-        # Enforce accessory activation policy for macOS FullScreen Space roaming
+        # ponytail: pywebview's cocoa.py unconditionally resets NSApplication.activationPolicy to 0 (Regular)
+        # on window creation, which forces Python onto the macOS Dock. To keep the HUD floating
+        # and roving across fullscreen Spaces without a Dock icon, we swizzle setActivationPolicy:
+        # via Objective-C runtime to enforce policy 1 (Accessory).
+        _libobjc = ctypes.cdll.LoadLibrary(ctypes.util.find_library("objc"))
+        _libobjc.objc_getClass.restype = ctypes.c_void_p
+        _libobjc.objc_getClass.argtypes = [ctypes.c_char_p]
+        _libobjc.sel_registerName.restype = ctypes.c_void_p
+        _libobjc.sel_registerName.argtypes = [ctypes.c_char_p]
+        _libobjc.class_getInstanceMethod.restype = ctypes.c_void_p
+        _libobjc.class_getInstanceMethod.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        _libobjc.method_getImplementation.restype = ctypes.c_void_p
+        _libobjc.method_getImplementation.argtypes = [ctypes.c_void_p]
+        _sel_policy = _libobjc.sel_registerName(b"setActivationPolicy:")
+        _meth_policy = _libobjc.class_getInstanceMethod(_libobjc.objc_getClass(b"NSApplication"), _sel_policy)
+        _orig_set_policy_imp = ctypes.cast(
+            _libobjc.method_getImplementation(_meth_policy),
+            ctypes.CFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_long),
+        )
         AppKit.NSApplication.sharedApplication().setActivationPolicy_(1)
+        AppKit.NSApplication.setActivationPolicy_ = lambda self, policy: bool(
+            _orig_set_policy_imp(_pyobjc.pyobjc_id(self), _sel_policy, 1)
+        )
     except Exception:
         pass
 
@@ -100,16 +122,13 @@ if sys.platform == "darwin" and _pyobjc_available:
             if self is not None:
                 self._hud_locked = False
                 self._locked_frame = None
-                try:
-                    app = AppKit.NSApplication.sharedApplication()
-                    if hasattr(app, "setActivationPolicy_"):
-                        app.setActivationPolicy_(1)
-                except Exception:
-                    pass
-
                 self.setFloatingPanel_(True)
                 self.setBecomesKeyOnlyIfNeeded_(True)
                 self.setWorksWhenModal_(True)
+                try:
+                    self.setAcceptsMouseMovedEvents_(True)
+                except Exception:
+                    pass
                 objc_super(HUDPanelHost, self).setHidesOnDeactivate_(False)
                 objc_super(HUDPanelHost, self).setCollectionBehavior_(337)
                 objc_super(HUDPanelHost, self).setLevel_(101)
@@ -181,6 +200,7 @@ if sys.platform == "darwin" and _pyobjc_available:
         Native macOS WKWebView Host for Floating HUD:
         Disables DOM timers throttling and hidden page timer throttling
         (_setDOMTimersThrottlingEnabled_(False)) to permanently eliminate WebKit background throttling and App Nap sleep.
+        Intercepts deprecated drawsTransparentBackground KVC calls and remaps to drawsBackground=False.
         """
         def initWithFrame_configuration_(self, rect, config):
             try:
@@ -191,9 +211,65 @@ if sys.platform == "darwin" and _pyobjc_available:
                     pref._setHiddenPageDOMTimerThrottlingEnabled_(False)
                 if hasattr(pref, "_setHiddenPageDOMTimerThrottlingAutoIncreases_"):
                     pref._setHiddenPageDOMTimerThrottlingAutoIncreases_(False)
+                if hasattr(config, "setWebsiteDataStore_"):
+                    import WebKit
+                    config.setWebsiteDataStore_(WebKit.WKWebsiteDataStore.nonPersistentDataStore())
             except Exception:
                 pass
             return objc_super(HUDWebKitHost, self).initWithFrame_configuration_(rect, config)
+
+        def setValue_forKey_(self, value, key):
+            """
+            Intercepts pywebview's deprecated drawsTransparentBackground KVC call
+            and remaps it to the modern non-deprecated drawsBackground property (inverted bool),
+            completely eliminating -[WKWebView _setDrawsTransparentBackground:] deprecation warning
+            while preserving 100% native background transparency.
+            """
+            if str(key) == "drawsTransparentBackground":
+                try:
+                    return objc_super(HUDWebKitHost, self).setValue_forKey_(not bool(value), "drawsBackground")
+                except Exception:
+                    pass
+            return objc_super(HUDWebKitHost, self).setValue_forKey_(value, key)
+
+        def valueForKey_(self, key):
+            """
+            Returns the mapped value for drawsTransparentBackground (inverted drawsBackground),
+            maintaining full KVC read/write consistency for pywebview.
+            """
+            if str(key) == "drawsTransparentBackground":
+                try:
+                    bg = objc_super(HUDWebKitHost, self).valueForKey_("drawsBackground")
+                    return not bool(bg)
+                except Exception:
+                    return True
+            return objc_super(HUDWebKitHost, self).valueForKey_(key)
+
+        def acceptsFirstMouse_(self, event):
+            return True
+
+        def updateTrackingAreas(self):
+            objc_super(HUDWebKitHost, self).updateTrackingAreas()
+            try:
+                old_ta = getattr(self, "_hud_tracking_area", None)
+                if old_ta is not None:
+                    try:
+                        self.removeTrackingArea_(old_ta)
+                    except Exception:
+                        pass
+                opts = (
+                    AppKit.NSTrackingMouseMoved |
+                    AppKit.NSTrackingMouseEnteredAndExited |
+                    AppKit.NSTrackingActiveAlways |
+                    AppKit.NSTrackingInVisibleRect
+                )
+                ta = AppKit.NSTrackingArea.alloc().initWithRect_options_owner_userInfo_(
+                    AppKit.NSZeroRect, opts, self, None
+                )
+                self._hud_tracking_area = ta
+                self.addTrackingArea_(ta)
+            except Exception:
+                pass
 
         def addSubview_(self, event):
             try:
@@ -203,6 +279,29 @@ if sys.platform == "darwin" and _pyobjc_available:
             except Exception:
                 pass
             objc_super(HUDWebKitHost, self).addSubview_(event)
+
+        def loadRequest_(self, request):
+            try:
+                import urllib.parse
+                import Foundation
+                url = request.URL() if request is not None else None
+                if url is not None and url.isFileURL():
+                    file_path = url.path()
+                    if file_path and not os.path.exists(file_path) and "%" in file_path:
+                        if os.path.exists(urllib.parse.unquote(file_path)):
+                            comp = Foundation.NSURLComponents.componentsWithURL_resolvingAgainstBaseURL_(url, True)
+                            if comp is not None and comp.percentEncodedPath():
+                                comp.setPercentEncodedPath_(comp.percentEncodedPath().replace("%25", "%"))
+                                fixed_url = comp.URL()
+                            else:
+                                fixed_url = Foundation.NSURL.URLWithString_(str(url.absoluteString()).replace("%25", "%"))
+                            if fixed_url is not None and fixed_url.path() and os.path.exists(fixed_url.path()):
+                                request = Foundation.NSURLRequest.requestWithURL_cachePolicy_timeoutInterval_(fixed_url, 1, 60.0)
+                    else:
+                        request = Foundation.NSURLRequest.requestWithURL_cachePolicy_timeoutInterval_(url, 1, 60.0)
+            except Exception:
+                pass
+            return objc_super(HUDWebKitHost, self).loadRequest_(request)
 
         def willOpenMenu_withEvent_(self, menu, event):
             try:
@@ -215,7 +314,6 @@ if sys.platform == "darwin" and _pyobjc_available:
         import webview.platforms.cocoa as cocoa
         cocoa.BrowserView.WindowHost = HUDPanelHost
         cocoa.BrowserView.WebKitHost = HUDWebKitHost
-        AppKit.NSApplication.sharedApplication().setActivationPolicy_(1)
     except Exception:
         pass
 
@@ -469,14 +567,6 @@ class MacOSWindowController:
             except Exception:
                 pass
 
-            try:
-                if _pyobjc_available:
-                    app = AppKit.NSApplication.sharedApplication()
-                    if hasattr(app, "setActivationPolicy_"):
-                        app.setActivationPolicy_(1)
-            except Exception:
-                pass
-
             # 注册全屏空间切换监听，当用户进入/切换至全屏 Chrome、Safari 时自动重申置顶
             try:
                 if not hasattr(self, "_space_observer_installed"):
@@ -543,6 +633,32 @@ class MacOSWindowController:
             try:
                 if hasattr(win, "orderFrontRegardless"):
                     win.orderFrontRegardless()
+            except Exception:
+                pass
+
+            # Enable cursor tracking across non-activating panel window for rock-solid hover
+            try:
+                if hasattr(win, "setAcceptsMouseMovedEvents_"):
+                    win.setAcceptsMouseMovedEvents_(True)
+                cv = win.contentView() if hasattr(win, "contentView") else None
+                if cv and hasattr(cv, "addTrackingArea_") and hasattr(AppKit, "NSTrackingArea"):
+                    has_active_always = False
+                    for ta in cv.trackingAreas():
+                        if getattr(ta, "_hud_always_active", False):
+                            has_active_always = True
+                            break
+                    if not has_active_always:
+                        opts = (
+                            AppKit.NSTrackingMouseMoved |
+                            AppKit.NSTrackingMouseEnteredAndExited |
+                            AppKit.NSTrackingActiveAlways |
+                            AppKit.NSTrackingInVisibleRect
+                        )
+                        ta = AppKit.NSTrackingArea.alloc().initWithRect_options_owner_userInfo_(
+                            AppKit.NSZeroRect, opts, cv, None
+                        )
+                        ta._hud_always_active = True
+                        cv.addTrackingArea_(ta)
             except Exception:
                 pass
 
@@ -1072,30 +1188,31 @@ class HudApi:
         self.window = window
         self.window_id = window_id
 
+    def _resolve_target_controller(self, window_id: Optional[str] = None) -> Optional["NativeWindowController"]:
+        """Resolves target controller honoring explicit window_id override, bound controller, or self.window_id."""
+        target_id = window_id or self.window_id
+        if target_id:
+            ctrl = self.app._resolve_target_controller(target_id)
+            if ctrl:
+                return ctrl
+        if self.controller:
+            return self.controller
+        if self.window_id:
+            return self.app._resolve_target_controller(self.window_id)
+        if getattr(self.app, "controller", None):
+            return self.app.controller
+        controllers = getattr(self.app, "controllers", [])
+        if len(controllers) == 1:
+            return controllers[0]
+        return None
+
     def toggle_lock(self, locked: Optional[bool] = None, window_id: Optional[str] = None) -> bool:
         """
         Toggles native click-through and syncs with backend POST /api/hud/lock.
         If controller or window_id is bound, toggles ONLY that target window!
         """
         wid = window_id or self.window_id
-        target_ctrl = None
-        if window_id and hasattr(self.app, "controller_map") and window_id in self.app.controller_map:
-            target_ctrl = self.app.controller_map[window_id]
-        elif window_id and window_id == "en" and len(getattr(self.app, "controllers", [])) > 0:
-            target_ctrl = self.app.controllers[0]
-        elif window_id and window_id == "zh" and len(getattr(self.app, "controllers", [])) > 1:
-            target_ctrl = self.app.controllers[1]
-        elif not window_id and self.controller:
-            target_ctrl = self.controller
-        elif wid:
-            if hasattr(self.app, "controller_map") and wid in self.app.controller_map:
-                target_ctrl = self.app.controller_map[wid]
-            elif wid == "en" and len(getattr(self.app, "controllers", [])) > 0:
-                target_ctrl = self.app.controllers[0]
-            elif wid == "zh" and len(getattr(self.app, "controllers", [])) > 1:
-                target_ctrl = self.app.controllers[1]
-        elif self.controller:
-            target_ctrl = self.controller
+        target_ctrl = self._resolve_target_controller(window_id)
 
         if target_ctrl:
             if locked is None:
@@ -1255,6 +1372,20 @@ class FloatingHUDApp:
             self.api_en = None
             self.api_zh = None
         self._stopped = False
+        self._stop_event = threading.Event()
+
+    def _resolve_target_controller(self, window_id: Optional[str] = None) -> Optional["NativeWindowController"]:
+        """Resolves target controller for window_id ('en', 'zh', 'auto', etc.) from controller_map or controllers list."""
+        if window_id and hasattr(self, "controller_map") and window_id in self.controller_map:
+            return self.controller_map[window_id]
+        controllers = getattr(self, "controllers", [])
+        if window_id == "en" and len(controllers) > 0:
+            return controllers[0]
+        if window_id == "zh" and len(controllers) > 1:
+            return controllers[1]
+        if (window_id in (None, "auto", "default") or len(controllers) == 1) and len(controllers) > 0:
+            return controllers[0]
+        return None
 
     def create_window(self):
         """Creates the pywebview window(s) with unique title and native transparent/frameless settings."""
@@ -1267,7 +1398,6 @@ class FloatingHUDApp:
                     cocoa.BrowserView.WindowHost = HUDPanelHost
                     if HUDWebKitHost is not None:
                         cocoa.BrowserView.WebKitHost = HUDWebKitHost
-                    AppKit.NSApplication.sharedApplication().setActivationPolicy_(1)
                 except Exception:
                     pass
 
@@ -1275,8 +1405,9 @@ class FloatingHUDApp:
             webview.settings["DRAG_REGION_SELECTOR"] = ".pywebview-drag-region, .drag-handle, .drag-anchor-corner, #drag-anchor-corner"
             webview.settings["DRAG_REGION_DIRECT_TARGET_ONLY"] = False
 
+        import urllib.parse
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        html_path = os.path.join(base_dir, "float_ui.html")
+        html_path = urllib.parse.quote(os.path.join(base_dir, "float_ui.html"))
 
         # Dynamically calculate primary screen horizontal center position
         screen_w = 1440
@@ -1374,35 +1505,17 @@ class FloatingHUDApp:
                 self.windows = [self.window]
                 self.controllers = [NativeWindowController(self.window)]
                 self.controller = self.controllers[0]
-                self.controller_map = {}
-                self.window_map = {}
+                channel_key = self.channel if (self.channel and self.channel != "auto") else "auto"
+                self.controller_map = {channel_key: self.controller, "auto": self.controller}
+                self.window_map = {channel_key: self.window, "auto": self.window}
                 self.api.window = self.window
                 self.api.controller = self.controller
 
             # Register lifecycle hooks across all windows
             for w, ctrl in zip(self.windows, self.controllers):
-                def _bind_hooks(c):
-                    def _on_load():
-                        try:
-                            c.setup_hud_window()
-                            c.pin_fullscreen_auxiliary()
-                            if self.is_stealth:
-                                c.set_stealth_mode(True)
-                        except Exception:
-                            pass
-                    def _on_show():
-                        try:
-                            c.setup_hud_window()
-                            c.pin_fullscreen_auxiliary()
-                            if self.is_stealth:
-                                c.set_stealth_mode(True)
-                        except Exception:
-                            pass
-                    return _on_load, _on_show
-
-                h_load, h_show = _bind_hooks(ctrl)
-                w.events.loaded += h_load
-                w.events.shown += h_show
+                handler = lambda c=ctrl: self._setup_controller(c)
+                w.events.loaded += handler
+                w.events.shown += handler
                 w.events.closing += self.on_window_closing
         else:
             self.window = None
@@ -1416,12 +1529,23 @@ class FloatingHUDApp:
         self._start_remote_unlock_listener()
         return self.window
 
+    def _setup_controller(self, ctrl: "NativeWindowController"):
+        """Configures a controller instance on window load/show."""
+        try:
+            ctrl.setup_hud_window()
+            ctrl.pin_fullscreen_auxiliary()
+            if self.is_stealth:
+                ctrl.set_stealth_mode(True)
+        except Exception:
+            pass
+
     def _start_remote_unlock_listener(self):
         """Starts background sync thread to honor remote unlock commands from server."""
         def _poll_remote_lock():
-            time.sleep(2.0)
+            if self._stop_event.wait(2.0):
+                return
             import urllib.request
-            while not self._stopped:
+            while not self._stopped and not self._stop_event.is_set():
                 try:
                     if self.is_locked:
                         now = time.monotonic()
@@ -1460,7 +1584,8 @@ class FloatingHUDApp:
                                                     pass
                 except Exception:
                     pass
-                time.sleep(1.0)
+                if self._stop_event.wait(1.0):
+                    break
 
         thread = threading.Thread(target=_poll_remote_lock, daemon=True)
         thread.start()
@@ -1468,28 +1593,17 @@ class FloatingHUDApp:
     def on_window_loaded(self):
         """Callback when webview finishes loading."""
         for ctrl in self.controllers:
-            try:
-                ctrl.setup_hud_window()
-                ctrl.pin_fullscreen_auxiliary()
-                if self.is_stealth:
-                    ctrl.set_stealth_mode(True)
-            except Exception:
-                pass
+            self._setup_controller(ctrl)
 
     def on_window_shown(self):
         """Callback when webview window becomes visible on screen."""
         for ctrl in self.controllers:
-            try:
-                ctrl.setup_hud_window()
-                ctrl.pin_fullscreen_auxiliary()
-                if self.is_stealth:
-                    ctrl.set_stealth_mode(True)
-            except Exception:
-                pass
+            self._setup_controller(ctrl)
 
     def on_window_closing(self):
         """Callback on window destruction to ensure native mouse state recovery."""
         self._stopped = True
+        self._stop_event.set()
         release_app_nap_preventer()
         try:
             for ctrl in self.controllers:
@@ -1509,12 +1623,9 @@ class FloatingHUDApp:
         success = True
         target_ctrls = []
         if window_id:
-            if hasattr(self, "controller_map") and window_id in self.controller_map:
-                target_ctrls = [self.controller_map[window_id]]
-            elif window_id == "en" and len(self.controllers) > 0:
-                target_ctrls = [self.controllers[0]]
-            elif window_id == "zh" and len(self.controllers) > 1:
-                target_ctrls = [self.controllers[1]]
+            ctrl = self._resolve_target_controller(window_id)
+            if ctrl:
+                target_ctrls = [ctrl]
         if not target_ctrls:
             target_ctrls = self.controllers
 
@@ -1535,12 +1646,9 @@ class FloatingHUDApp:
     def is_click_through(self, window_id: Optional[str] = None) -> bool:
         """Returns whether native click-through mode is active (for a specific window or globally)."""
         if window_id:
-            if hasattr(self, "controller_map") and window_id in self.controller_map:
-                return self.controller_map[window_id].is_click_through()
-            if window_id == "en" and len(self.controllers) > 0:
-                return self.controllers[0].is_click_through()
-            if window_id == "zh" and len(self.controllers) > 1:
-                return self.controllers[1].is_click_through()
+            ctrl = self._resolve_target_controller(window_id)
+            if ctrl:
+                return ctrl.is_click_through()
         if self.controllers:
             self._update_is_locked()
         return self.is_locked
@@ -1564,6 +1672,7 @@ class FloatingHUDApp:
     def close(self):
         """Closes and destroys all active HUD windows safely."""
         self._stopped = True
+        self._stop_event.set()
         release_app_nap_preventer()
         try:
             for ctrl in self.controllers:

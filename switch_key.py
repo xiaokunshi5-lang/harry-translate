@@ -103,14 +103,14 @@ def probe_provider_identity(api_key: str) -> dict:
             continue
 
     # 如果无法通过公网探测，基于格式启发式推测
-    if api_key.startswith("sk-" + "ws-") or "maas" in api_key:
+    if api_key.startswith("sk-ws-") or "maas" in api_key:
         return {
             "detected": True,
             "provider": "阿里云百炼 (DashScope 业务空间专属Key)",
             "supports_realtime": True,
             "info": KNOWN_PROVIDERS[0]
         }
-    elif api_key.startswith("sk-" + "proj-"):
+    elif api_key.startswith("sk-proj-"):
         return {
             "detected": True,
             "provider": "OpenAI",

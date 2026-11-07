@@ -61,7 +61,7 @@ class OffScreenWebKitDriver:
         with open(HTML_PATH, "r", encoding="utf-8") as f:
             content = f.read()
         self.wv.loadHTMLString_baseURL_(content, Cocoa.NSURL.fileURLWithPath_(HTML_PATH))
-        self._pump(0.5)
+        self._pump(0.25)
 
     def _pump(self, duration: float):
         t0 = time.time()

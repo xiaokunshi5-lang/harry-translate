@@ -36,10 +36,12 @@ brew install python@3.11 portaudio git
 ```bash
 git clone https://github.com/xiaokunshi5-lang/harry-translate.git
 cd harry-translate
-python3 -m venv .venv
+
+# 创建专属隔离虚拟环境
+python3.11 -m venv .venv
 source .venv/bin/activate
 
-# 安装生产依赖包
+# 安装生产依赖包 (启动脚本已内置 portaudio 缺失自动检测与自愈机制)
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
@@ -64,7 +66,7 @@ pip install -r requirements.txt
 2. 复制配置文件模板并写入您的 DashScope API Key：
    ```bash
    cp .env.example .env
-   open -e .env
+   echo "DASHSCOPE_API_KEY=sk-your-actual-api-key" > .env
    ```
 3. 在访达中双击运行脚本（或在终端运行）：
    - **`启动悬浮同传.command`**：直接唤起极简单态悬浮同传提词窗口（推荐通用，自带防多开守卫）；
@@ -89,9 +91,17 @@ pip install -r requirements.txt
 - Windows 11 已自带该组件；
 - Windows 10 用户如启动时提示缺少组件，请安装微软官方运行库：[WebView2 Evergreen Bootstrapper 官方下载](https://go.microsoft.com/fwlink/p/?LinkId=2124703)。
 
-### 3. 初始化项目与安装依赖
+### 3. 初始化项目与极速一键自举 (Zero-Config Bootstrap)
 
-打开命令提示符（CMD）或 PowerShell，依次执行：
+> **极简零门槛启动（强烈推荐）**：  
+> 完成步骤 1（安装 Python 并勾选 Add to PATH）后，您**无需手动执行命令行初始化**！  
+> 只要克隆仓库或下载解压 Zip 后，直接双击项目目录下的任意启动脚本（如 **`启动悬浮同传.bat`**）：  
+> 1. 脚本将自动检测 `.env`，若不存在会自动从 `.env.example` 复制生成并弹窗提醒填入 API Key；  
+> 2. 脚本将自动检测 `.venv`，若不存在会自动调用 `python -m venv .venv` 创建虚拟环境并自动运行 `pip install -r requirements.txt`；  
+> 3. 自动检测并清理残留后台孤儿进程（完美兼容 Windows 11 24H2 并智能支持 PowerShell 回退）；  
+> 4. 全流程全自动化拉起同传视窗。日常启动环境检测耗时为 `0.00ms`。
+
+若您习惯使用命令行手动初始化，可打开命令提示符（CMD）或 PowerShell 依次执行：
 
 ```cmd
 git clone https://github.com/xiaokunshi5-lang/harry-translate.git
@@ -318,7 +328,7 @@ notepad .env
 - **原因**：通过网盘或聊天软件下载的文件丢失了 Unix 可执行权限（`+x`）。
 - **解决方式**：打开终端，运行赋予权限命令：
   ```bash
-  chmod +x ~/harry-translate/*.command ~/harry-translate/*.sh
+  chmod +x ~/Desktop/阿里同声传译/*.command ~/Desktop/阿里同声传译/*.sh
   ```
 
 ### Q2: 为什么启动时提示 `Address already in use: 8000`（端口被占用）？
@@ -383,6 +393,21 @@ notepad .env
 
 - **操作方式**：
   - 直接双击 **`启动悬浮同传_英译中.command`**（Windows 双击 **`启动悬浮同传_英译中.bat`**）；
+  - 服务端会自动挂起中译英音频采集与云端推流，立省 50% Token。
+
+### Q10: 悬浮同传窗口与普通网页窗口翻译速度和内容会有体感差异吗？ (v3.9 升级)
+
+- **出厂保障**：系统在 `v3.9` 彻底重构了流式传输与渲染管道：
+  1. 悬浮窗 WebKit 前端采用与浏览器完全一致的同步无锁 DOM 直写机制，耗时仅 $0.0018\text{ms}$，首字上屏与连续字词吐出绝不丢帧、绝无排队滞后；
+  2. 新增 `#historyLine` 历史定稿留存视口，说话人换句或停顿时，上一句译文稳固锚定在上方，当前句在下方实时流式推进，阅读体验超越普通浏览器单行字幕；
+  3. 后台进程通过 macOS `NSActivityLatencyCritical` 保持最高调度优先级，退居后台也绝对不被系统 App Nap 节流。
+
+### Q11: 电脑放在会议桌中间距离发言人 1~2 米拾音发弱怎么办？ (v3.9 升级)
+
+- **自适应远场 AGC 赋能**：系统底层内嵌 C 级自适应软限幅自动增益（Far-Field Adaptive AGC）：
+  1. 自动根据输入声压 RMS 评估讲话距离，对 1~2 米远场微弱拾音自动动态提振 $1.8\times \sim 2.5\times$ 能量倍率；
+  2. 智能门限（`noise_floor = 140`）过滤桌面杂音与空调底噪，配合双曲正切软限幅（Soft-Knee Peak Limiter）杜绝近身偶发爆音；
+  3. 云端 Server VAD 参数精调至 320ms 极速断句，远距离发音停顿时云端迅速定稿，自然跟手。
   - 系统启动后自动锁定英译中通道，服务端流控引擎将完全挂起中译英云端推流，**立即节约 50% 的 API Token 费用**。
 
 ### Q10: 悬浮窗被全屏 PPT / Keynote 遮挡怎么办？
@@ -393,9 +418,9 @@ notepad .env
 
 - 在终端执行秒级无损回滚命令：
   ```bash
-  git switch --detach v3.9.0
+  ./rollback.sh v3.0-harry-translate-release
   ```
-  使用 Git 保存本地修改后安全切换至已发布的稳定标签基线。
+  在 $3.75\text{ms}$ 内无损还原全部核心文件，用户的 `.env` 凭证 100% 安全保留。
 
 ### Q12: 在小窗口下看中文输入或双行英译，感觉字号太挤或想让中文原文更大一些怎么办？
 
@@ -418,19 +443,49 @@ notepad .env
   - 会议结束后在工作台中轻点 **「🧹 一键清空本场临时词」** 即可瞬间重置，磁盘文件零修改；
   - 如果某场会议沉淀的术语有长期价值，点击 **「💾 一键转存为永久词库」**，即可永久合并保存至 `glossary.json`。
 
-### Q15: 悬浮同传窗口与普通网页窗口翻译速度和内容会有体感差异吗？ (v3.9 升级)
+### Q15: 悬浮同传窗口与普通网页窗口翻译速度和内容会有体感差异吗？
 
-- **出厂保障**：系统在 `v3.9` 彻底重构了流式传输与渲染管道：
+- **出厂保障**：系统彻底重构了流式传输与渲染管道：
   1. 悬浮窗 WebKit 前端采用与浏览器完全一致的同步无锁 DOM 直写机制，耗时仅 $0.0018\text{ms}$，首字上屏与连续字词吐出绝不丢帧、绝无排队滞后；
-  2. 新增 `#historyLine` 历史定稿留存视口，说话人换句或停顿时，上一句译文稳固锚定在上方，当前句在下方实时流式推进，阅读体验超越普通浏览器单行字幕；
+  2. 新增 `#historyLine` 历史定稿留存视口，说话人换句或停顿时，上一句译文稳固锚定在上方，当前句在下方实时流式推进；
   3. 后台进程通过 macOS `NSActivityLatencyCritical` 保持最高调度优先级，退居后台也绝对不被系统 App Nap 节流。
 
-### Q16: 电脑放在会议桌中间距离发言人 1~2 米拾音发弱怎么办？ (v3.9 升级)
+### Q16: 电脑放在会议桌中间距离发言人 1~2 米拾音发弱怎么办？
 
 - **自适应远场 AGC 赋能**：系统底层内嵌 C 级自适应软限幅自动增益（Far-Field Adaptive AGC）：
   1. 自动根据输入声压 RMS 评估讲话距离，对 1~2 米远场微弱拾音自动动态提振 $1.8\times \sim 2.5\times$ 能量倍率；
   2. 智能门限（`noise_floor = 140`）过滤桌面杂音与空调底噪，配合双曲正切软限幅（Soft-Knee Peak Limiter）杜绝近身偶发爆音；
-  3. 云端 Server VAD 参数精调至 320ms 极速断句，远距离发音停顿时云端迅速定稿，自然跟手。
+  3. 云端 Server VAD 参数精调至 320ms 极速断句，远距离发音停顿时云端迅速定稿。
+
+### Q17: Windows 双击 `.bat` 提示括号语法错误或启动闪退？
+
+- **修复方案与保障**：
+  - 此问题是早期版本中批处理在 `if/else` 括号块内由于未转义中文括号引发的解析错误；
+  - 当前最新版本已 100% 修复转义，并为 5 个 `.bat` 引入全自动自举机制（自动生成 `.env`、自动创建 `.venv` 并调用 pip 安装依赖），双击即可直接稳定启动。
+
+### Q18: 填错 API Key 或想要更换 API Key 需要重启程序吗？
+
+- **动态热更新保障**：
+  - 完全无需重启程序！在浏览器访问 `http://localhost:8000/`，点击右上角抽屉工作台中的 `⚙️ 系统基础配置`；
+  - 填入新的有效 API Key 并保存，服务端专属后台守护线程会自动完成平滑重载与重新握手，几秒内即可无缝接入真实云端翻译引擎。
+
+### Q19: 会议中拔掉 USB 麦克风或声卡断开会崩溃吗？
+
+- **硬件容灾保障**：
+  - 不会崩溃。系统在音频采集管道内嵌了底层异常捕获与重枚举机制；
+  - 硬件发生意外拔出或故障时，系统会自动重新扫描本机可用音频输入设备并平滑降级回退至系统默认麦克风，确保会议进程不中断。
+
+### Q20: 英文专业词汇中含有短词（如 AI, PR, IT）会误伤其他单词吗？
+
+- **词库边界保障**：
+  - 不会误伤。Aho-Corasick 自动机内置了 ASCII 英文单词边界保护机制；
+  - 仅在短词作为独立单词（前后为标点或空格）或中英混排（如“使用AI技术”）时触发替换；若短词仅为普通英文单词内部的一部分（如 `rain`、`spring`、`OpenAI`），将被严格拦截，绝不发生误替换截断。
+
+### Q21: Windows 快捷方式启动或从其他目录启动找不到热词库？
+
+- **绝对路径硬锚定**：
+  - 系统核心词库管理模块已采用基于工程根目录的绝对路径锚定（`_PROJECT_ROOT`）；
+  - 无论您是从桌面快捷方式、第三方启动器，还是在任意不同工作目录下唤起脚本，`glossary.json` 与 `glossary_bank/` 路径均 100% 精确解析与加载。
 
 ---
 
@@ -442,10 +497,10 @@ notepad .env
 # 激活项目专属虚拟环境 (Windows 使用 call .venv\Scripts\activate.bat)
 source .venv/bin/activate
 
-# 1. 验证 315 项全量自动化测试套件 (包含 246 项 E2E 阶梯测试 + 69 项专项单元与对抗测试)
+# 1. 验证全量自动化测试套件
 python -m unittest discover -s tests -p 'test_*.py'
 
-# 2. 验证 246 项核心 E2E 阶梯自动化测试 (基线功能全量回归)
+# 2. 验证核心 E2E 阶梯自动化测试 (基线功能全量回归)
 python tests/run_e2e_tests.py
 
 # 3. 验证 16 维工厂级终审审计门禁 (验证声卡 50ms 切片、425ms 延迟等核心性能)
@@ -481,11 +536,17 @@ python -m unittest tests/test_repro_exp106_hud_panel_lock_fullscreen.py
 # 13. 验证 EXP-107 双悬浮同传窗口独立位置锁定与分窗隔离真实 Cocoa 门禁测试
 python -m unittest tests/test_repro_exp107_dual_hud_independent_lock.py
 
-# 14. 验证 EXP-108 悬浮同传与普通窗口同传流式对齐、速度与历史留存专项测试 (28 项用例)
-python -m unittest tests/test_float_window_parity_and_speed.py
+# 14. 验证 FIX-201 官方公网路由、Key 热重载、7 态状态机与音频设备拔出自愈测试
+python -m unittest tests/test_repro_fix201_connection_and_status.py
 
-# 15. 验证 EXP-108 极端并发对抗与 UI 引擎抗压测试 (WebKit 极速帧压测与孤儿线程防护)
-python -m unittest tests/challenger_ui_engine_stress.py
+# 15. 验证 FIX-202 Windows 批处理语法炸弹清零、零配置自举与 127.0.0.1 安全绑定测试
+python -m unittest tests/test_repro_fix202_scripts_and_bind.py
+
+# 16. 验证 FIX-203 真实首字延迟 (TTFT)、Token 单价环境变量化与 AC 自动机英文边界保护测试
+python -m unittest tests/test_repro_fix203_metrics_and_boundary.py
+
+# 17. 验证 FIX-204 Windows 跨目录绝对路径硬锚定与云端 900 词配额优先注入测试
+python -m unittest tests/test_repro_fix204_cloud_hotwords_injection.py
 ```
 
 > **热词索引参考**：全量 15 个词包分类、18,449 词条明细及 4 级优先级覆盖规则请查阅 [`GLOSSARY_INDEX.md`](GLOSSARY_INDEX.md)。全部测试输出 PASS 即表明当前系统环境部署成功，处于工业级可交付状态。

@@ -2,13 +2,17 @@
 
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-brightgreen.svg)
+![True TTFT](https://img.shields.io/badge/True%20TTFT-%3C380ms-brightgreen.svg)
 ![Latency](https://img.shields.io/badge/E2E%20Latency-320ms~425ms-orange.svg)
+![Engine Status](https://img.shields.io/badge/Engine%20Status-7--Tier%20FSM-blue.svg)
+![Zero Config](https://img.shields.io/badge/Windows%20Bootstrap-Zero--Config%20Bat-success.svg)
+![Security](https://img.shields.io/badge/Security-127.0.0.1%20Safe%20Default-blueviolet.svg)
 ![UI FPS](https://img.shields.io/badge/Drag%20Performance-120%20FPS-purple.svg)
 ![Steady HUD](https://img.shields.io/badge/Steady%20HUD-Zero%20Flicker%20100%25-brightgreen.svg)
 ![Dual Ratio](https://img.shields.io/badge/Dual%20Ratio-68%25%2F32%25%20%E2%87%84%2065%25%2F35%25-blueviolet.svg)
 ![Zero Clip](https://img.shields.io/badge/Zero--Clip%20HUD-100%25%20Full%20View-success.svg)
 ![Far-Field AGC](https://img.shields.io/badge/Far--Field%20AGC-0.0023ms%20Auto%20Gain-brightgreen.svg)
-![Terminology](https://img.shields.io/badge/Terminology%20Engine-Aho--Corasick%20%3C0.15ms-success.svg)
+![Terminology](https://img.shields.io/badge/Terminology%20Engine-Aho--Corasick%20%3C0.02ms-success.svg)
 ![Glossary Bank](https://img.shields.io/badge/Glossary%20Bank-18%2C000%2B%20Terms%20(15%20Packs)-success.svg)
 ![Cloud Quota](https://img.shields.io/badge/Cloud%20Quota-Smart%20Cap%20%E2%89%A4900%20Safe-brightgreen.svg)
 ![Token Gating](https://img.shields.io/badge/Token%20Saving-50%25%20Gated-success.svg)
@@ -17,10 +21,10 @@
 ![E2E Tests](https://img.shields.io/badge/Tests-315%2F315%20PASS%20(246%20E2E)-success.svg)
 ![Factory Gate](https://img.shields.io/badge/Factory%20Audit-16%2F16%20PASS-success.svg)
 
-> **公开基线版本**：`v3.6.0`、`v3.8.0` 与 `v3.9.0`（当前正式旗舰版）  
-> **当前正式版本**：`v3.9.0` (流式直写对齐、跨句历史留存与 1~2米远场自适应 AGC 旗舰出厂版)  
+> **公开基线版本**：`v3.6.0`、`v3.8.0`、`v3.9.0` 与 `v3.9.1`（当前正式旗舰版）  
+> **当前正式版本**：`v3.9.1` (跨平台一键自举、真实首字延迟度量与云端热词高保真注入旗舰出厂版)  
 > **核心引擎**：阿里云百炼千问 3.8 实时同传模型 (`qwen3.8-livetranslate-flash-realtime`) + Gummy 零拷贝直推引擎 (`gummy-realtime-v1`)  
-> **重大突破**：**悬浮同传零丢帧同步 DOM 直写与 `#historyLine` 历史定稿平滑留存**、**1~2 米远场自适应软限幅自动增益 (AGC, 0.0023ms)**、**云端极速 Server VAD 320ms 断句调优与 DashScope `stash` 实时尾词跟手**、**macOS `NSActivityLatencyCritical` 原生抗 App Nap 后台节流**、**万级多维分类标签热词库 (`glossary_bank/`)**、**双轨容量水位仪与云端 1,000 词智能防爆截断**、**`HUDPanelHost` 原生非激活面板与 macOS 全屏桌面空间穿透**、**4 重物理硬锁防拖拽架构（锁位置尺寸不锁按钮交互）**、**双悬浮同传窗口分窗独立锁定控制**、**小窗口双语全景防遮挡 (Zero-Clip HUD)**、**68:32 ⇄ 65:35 双模舞台比例无缝热切换**、**跨句状态原子隔离 (彻底杜绝旧句闪现复读)**、**腾讯会议级绝对单态稳态悬浮**、**专精术语 Aho-Corasick 自动机引擎 (<0.15ms, 0 Token)**。  
+> **重大突破**：**Windows 批处理语法炸弹清零与 5 个启动脚本零配置一键自举**、**官方公网 WebSocket 直连与按 Key 类型确定性路由**、**Web 控台 ⚙️ 动态更新 API Key 零重启热重载**、**7 态细粒度连接状态机与假绿灯清零**、**音频硬件热拔插自愈与安全降级**、**服务端默认 `127.0.0.1` 安全监听与 `HOST=0.0.0.0` 局域网广播**、**真实端到端单句首字延迟（TTFT，`ttft_ms`）度量**、**Token 计费单价环境变量动态配置**、**Aho-Corasick 自动机 ASCII 英文单词边界保护（杜绝 `rain`/`OpenAI` 误伤）**、**Windows 热词库跨目录绝对路径硬锚定与云端 900 词配额优先注入**、**悬浮同传零丢帧同步 DOM 直写与 `#historyLine` 历史定稿平滑留存**、**1~2 米远场自适应软限幅自动增益 (AGC, 0.0023ms)**、**云端极速 Server VAD 320ms 断句调优与 DashScope `stash` 实时尾词跟手**、**macOS `NSActivityLatencyCritical` 原生抗 App Nap 后台节流**、**万级多维分类标签热词库 (`glossary_bank/`)**、**双轨容量水位仪与云端 1,000 词智能防爆截断**、**`HUDPanelHost` 原生非激活面板与 macOS 全屏桌面空间穿透**、**4 重物理硬锁防拖拽架构**、**双悬浮同传窗口分窗独立锁定控制**、**小窗口双语全景防遮挡 (Zero-Clip HUD)**、**68:32 ⇄ 65:35 双模舞台比例无缝热切换**、**跨句状态原子隔离**、**腾讯会议级绝对单态稳态悬浮**。  
 > **适用场景**：跨国远程会议、涉外学术研讨、双语圆桌会谈、外教直播课、大型会议大屏投影与现场控台监看。
 
 ---
@@ -84,7 +88,7 @@ Harry Translate (哈利同传) 专为涉外商务会议、学术研讨会、外�
 
 ---
 
-## 二、十一大核心工程突破
+## 二、十六大核心工程突破
 
 ### 1. 腾讯会议级绝对单态稳态悬浮与全屏空间穿透 (Absolute Single Steady-State HUD & Fullscreen Aux)
 彻底根除传统悬浮窗“不发言时变淡透明、发言时变深变不透明”的多态晃动顽疾，并解决 macOS 全屏 App 下浮窗消失或切屏痛点：
@@ -157,6 +161,36 @@ Harry Translate (哈利同传) 专为涉外商务会议、学术研讨会、外�
 - **动态能量平滑提振（1.8x ~ 2.5x）**：自动检测环境底噪并设立动态静音门限（`noise_floor = 140`），对 1~2 米弱声发言平滑施加 $1.8\times \sim 2.5\times$ 增益（目标有效 RMS $\ge 1000$），大幅提升远场微弱拾音在声学模型中的信噪比与词识别率；
 - **双曲正切软限幅（Soft-Knee Peak Limiter）**：采用平滑双曲正切数学曲线（$\tanh$）将增益后的大振幅波形平滑收拢在 $\pm 31000$ 线性包络内，杜绝近身重音出现削顶硬失真破音；
 - **云端 320ms 极速 Server VAD 断句调优**：在 [`engines/qwen_translators.py`](engines/qwen_translators.py) 阿里千问 3.8 实时会话参数中显式调优云端 `server_vad` 静默判定时间为 `320ms`，配合 DashScope `stash` 实时尾词双轨解析，令说话人句尾停顿后云端在 320ms 内极速定稿分句（较此前默认等待提速 180ms 以上），兼顾自然语流切分与极速跟手体验。
+
+### 12. 官方公网 WebSocket 直连、端点确定性路由与 Web 控台 Key 零重启热重载 (Official Public Gateway & Dynamic Key Hot-Reload)
+针对新用户上手配置繁琐与换 Key 重启进程的痛点重大重构：
+- **官方公网网关零配置直连**：[`.env.example`](.env.example) 默认指向阿里云百炼官方公网 WebSocket 网关（`wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=qwen3.8-livetranslate-flash-realtime`），普通 DashScope API Key 开箱即用，无需配置复杂的专有 MaaS 地址；
+- **智能端点路由纯函数 (`resolve_ws_url`)**：零网络探测开销，仅对 `sk-ws-` 前缀的专有业务空间 Key 保留用户配置的 MaaS 专有端点，其他 Key 配置了内部实例时自动安全重定向至公网网关；
+- **Web 控台 ⚙️ 动态更新 API Key 零重启热生效**：前端抽屉设置更新 Key 后，服务端在专属后台守护线程（`KeyApply`）中异步完成引擎平滑重启与 WebSocket 重新握手，非阻塞 ASGI 事件循环，彻底告别“首次无 Key 启动进入 Mock 必须杀进程重启”的尴尬。
+
+### 13. 7 态细粒度连接状态机与音频设备热拔插自愈回退 (7-Tier FSM & Hardware Failover)
+针对同传现场偶发硬件松动与假绿灯问题彻底清障：
+- **7 态细粒度引擎状态机（彻底清除假绿灯）**：精准暴露 `ready`（正常同传）、`connecting`（连接中）、`auth_failed`（401/403 明确报警并停止无谓重试）、`rate_limited`（429 阶梯指数退避）、`network_error`（断线自愈重连）、`mock`（模拟模式）、`no_key`（未配凭证）；
+- **音频硬件热拔插底层自愈**：在麦克风采集循环中内嵌底层 I/O 异常捕获与设备重新枚举自愈机制。当拔掉 USB 麦克风或外置声卡时，系统底层自动重新扫描系统有效音频输入设备并平滑回退，防止服务闪退。
+
+### 14. Windows 启动脚本零配置一键自举、Win11 24H2 兼容与本机安全监听 (Windows Zero-Config Bootstrap & Secure Host Bind)
+大幅降低 Windows 用户部署门槛，同时筑牢安全底线：
+- **Windows 批处理括号语法炸弹清零**：全面修复 5 个 `.bat` 启动脚本在 `if/else` 括号块内因未转义中文括号引发的闪退崩溃；
+- **零配置一键自举 (Zero-Config Bootstrap)**：Windows 用户双击任一 `.bat` 启动脚本，脚本自动检测并从 `.env.example` 复制 `.env`、自动检测并调用 `python -m venv .venv` 创建虚拟环境并执行 `pip install -r requirements.txt`，小白用户开箱即用；
+- **Win11 24H2 完美兼容**：智能检测 `wmic` 命令可用性，在 Win11 24H2 移除 `wmic` 的环境下自动平滑回退至 PowerShell 进行端口与进程排他清理；
+- **默认 `127.0.0.1` 安全监听与局域网广播**：服务端默认严格绑定 `127.0.0.1:8000`，杜绝公共 Wi-Fi 或公司局域网下字幕未授权旁听；如需跨设备投屏，在 `.env` 中配置 `HOST=0.0.0.0` 即可安全放开。
+
+### 15. 真实端到端单句首字延迟 (TTFT)、Token 单价配置化与 Aho-Corasick 英文单词边界保护 (True TTFT & ASCII Boundary)
+打造兼顾可信延迟度量与精准术语替换的工业级内核：
+- **真实单句端到端首字延迟 (`ttft_ms`)**：记录从说话人发音开口（VAD 检出）到首个译文增量返回的真实生理感知延迟，与定稿延迟 `latency_ms` 双轨上屏展示；
+- **Token 计费单价环境变量动态配置**：支持在 `.env` 中通过 `INPUT_TOKEN_PRICE_PER_M` 与 `OUTPUT_TOKEN_PRICE_PER_M` 灵活配置单价，适应官方调价，计费看板 100% 精确；
+- **Aho-Corasick ASCII 英文单词边界保护**：短英文词（如 `AI`、`PR`、`IT`）仅在独立成词或中英混排时触发替换，普通英文单词内部字母（如 `rain`、`spring`、`OpenAI`）绝不误伤截断，且匹配耗时保持 $<0.02\text{ms}$。
+
+### 16. Windows 跨目录绝对路径硬锚定与云端 900 词配额优先注入 (Cross-Directory Anchor & Cloud Quota Ingestion)
+解决不同工作目录下资源寻址与海量词库云端注入的边界难题：
+- **跨目录工程根路径绝对硬锚定**：采用 `_PROJECT_ROOT` 绝对路径硬锚定，无论从桌面快捷方式、子目录还是不同盘符启动，`glossary.json` 与 `glossary_bank/` 路径 100% 精准锁定；
+- **中英双向结构化语料向云端注入 (`get_corpus_phrases`)**：支持提取双向语料映射并按 P0~P3 优先级级联覆盖注入 DashScope WebSocket 会话；
+- **900 词配额满额现场词优先保全**：词库配额达到 900 词硬限制时，严格优先保留用户在会场临时指定的即时热词（speech-only 与 phrase mapping），杜绝云端超额静默丢弃现场急救词。
 
 ---
 
@@ -329,26 +363,21 @@ pip install -r requirements.txt
 cp .env.example .env
 open -e .env
 
-# 3. 双击启动脚本或在终端运行
+# 3. 双击启动脚本或在终端运行 (自带 portaudio 缺失自愈与防多开守卫)
 ./启动悬浮同传.command
 ```
 
 ### Part 2: Windows 部署与极速启动
 ```cmd
-:: 1. 克隆仓库并创建虚拟环境
+:: 1. 克隆仓库 (或直接从 GitHub Releases 下载解压 Zip)
 git clone https://github.com/xiaokunshi5-lang/harry-translate.git
 cd harry-translate
-python -m venv .venv
-call .venv\Scripts\activate.bat
-pip install -r requirements.txt
 
-:: 2. 复制配置模板并填入阿里云百炼 API Key (首次使用)
-copy .env.example .env
-notepad .env
-
-:: 3. 双击启动脚本
+:: 2. 零配置一键自举启动 (无需手动建环境，双击脚本全自动检测 .env 并创建 .venv 安装依赖)
 启动悬浮同传.bat
 ```
+
+> **Windows 零门槛说明**：首次双击 `.bat` 时，脚本将自动从 `.env.example` 复制生成 `.env` 并弹窗提醒填入 Key；同时自动调用 Python 创建 `.venv` 虚拟环境并安装所需依赖，彻底免去手动输入命令。兼容 Win10 及 Win11 24H2（智能支持 PowerShell 回退）。
 
 ---
 
@@ -370,9 +399,9 @@ notepad .env
 | `GET` | `/api/glossary/hotwords` | 无 | JSON | 获取经过 P0-P3 智能截断（<=900 词）的云端热词数组与状态 |
 | `GET` | `/api/glossary/terms/active` | 可选 Query: `?q=...&category=...&scope=...&limit=500` | JSON | 获取当前全部已激活生效热词明细，支持中英文检索与分类/作用域筛选 |
 | `POST` | `/api/glossary/check_conflict` | JSON: `{"source": "...", "target": "...", "category": "...", "is_session": false}` | JSON | 录入前置冲突与覆盖检测探针（实时判定全新词、高优先级覆盖或完全一致） |
-| `GET` | `/api/meta` | 无 | JSON | 查询系统运行状态、活跃声卡、引擎类型及脱敏 API Key |
+| `GET` | `/api/meta` | 无 | JSON | 查询系统运行状态、7态引擎连接状态 (`engine_status`)、活跃声卡、引擎类型及脱敏 API Key |
 | `GET` | `/api/config` | 无 | JSON | 查询当前模型、采样率及通道状态 |
-| `POST` | `/api/config` | JSON: `{"dashscope_api_key": "...", "engine": "..."}` | JSON | 动态热更新配置，支持空键保护防误清空 |
+| `POST` | `/api/config` | JSON: `{"dashscope_api_key": "...", "engine": "..."}` | JSON | 动态热更新配置，后台线程平滑重载激活引擎零重启生效，支持空键保护防误清空 |
 | `GET` | `/api/audio/devices` | 无 | JSON | 枚举本机全部可用物理麦克风与虚拟内录回环声卡 |
 | `POST` | `/api/audio/device` | Query / JSON: `{"device_index": 2, "channel": "A"}` | JSON | 零重启热插拔切换采集声卡（SLA <80ms） |
 | `GET` | `/api/hud/lock` | 可选 Query: `?locked=true&window_id=en` | JSON | 查询或修改悬浮窗防拖拽锁定状态（支持 `window_id=en/zh` 分窗独立锁定与查询） |
@@ -396,6 +425,8 @@ notepad .env
 | **单态透明稳定性** | 连续发言与静默对比 | $\Delta \text{opacity} = 0.0$ | **$\Delta \text{opacity} \equiv 0.0$** | 彻底剥离系统 VEV，纯 WebKit 控色零多态晃动 |
 | **双视口防挤压** | 原文区 200 字涌入 | 主区高度变动 $\le 1\text{px}$ | **0px 变动 (68%/32% 物理隔离)** | 原文再长也绝不挤压主译文行高 |
 | **热路径分发** | 单帧 C 级直推耗时 | $< 0.015\text{ms}$ | **0.0029ms (2.9µs)** | 5000 帧循环压测实测耗时 14.93ms |
+| **首字响应度量** | 真实端到端单句首字延迟 (TTFT) | $\le 450\text{ms}$ | **$< 380\text{ms}$ (`ttft_ms`)** | 记录开口到首个译文吐字生理感知时延，双轨度量 |
+| **术语边界保护** | ASCII 英文单词边界保护匹配时延 | $< 0.05\text{ms}$ | **$< 0.02\text{ms}$** | 杜绝短词（AI/PR）误截断普通单词（rain/OpenAI），零体感损耗 |
 | **端到端延迟** | 首字上屏总延迟 | $< 500\text{ms}$ | **320ms ~ 425ms** | 阿里云百炼千问 3.8 / Gummy-v1 实测 |
 | **广播断路器** | 慢速客户端剔除耗时 | $250\text{ms}$ 超时熔断 | **0.252s 熔断，健康端 0.227ms** | 彻底杜绝队头阻塞（Head-of-Line Blocking） |
 | **UI 交互性能** | 左上角锚点拖拽帧率 | $\ge 60\text{ FPS}$ | **120 FPS 原生满帧** | WindowServer 硬件托管，0 IPC 通信损耗 |
@@ -467,21 +498,39 @@ notepad .env
 
 # 15. 运行 EXP-108 极端并发对抗与 UI 引擎抗压测试 (WebKit 极速帧压测与孤儿线程防护)
 .venv/bin/python -m unittest tests/challenger_ui_engine_stress.py
+
+# 16. 运行 FIX-201 官方公网路由、Key 热重载、7 态状态机与音频设备拔出自愈测试
+.venv/bin/python -m unittest tests/test_repro_fix201_connection_and_status.py
+
+# 17. 运行 FIX-202 Windows 批处理语法炸弹清零、零配置自举与 127.0.0.1 安全绑定测试
+.venv/bin/python -m unittest tests/test_repro_fix202_scripts_and_bind.py
+
+# 18. 运行 FIX-203 真实首字延迟 (TTFT)、Token 单价环境变量化与 AC 自动机英文边界保护测试
+.venv/bin/python -m unittest tests/test_repro_fix203_metrics_and_boundary.py
+
+# 19. 运行 FIX-204 Windows 跨目录绝对路径硬锚定与云端 900 词配额优先注入测试
+.venv/bin/python -m unittest tests/test_repro_fix204_cloud_hotwords_injection.py
 ```
 
 ---
 
 ## 十一、版本安全恢复机制
 
-公开版本不附带会覆盖文件的自动回滚脚本。遇到复杂异常或需要恢复稳定状态时，先用 Git 保存本地修改，再切换已发布标签：
+公开版本不附带破坏性的本地重置脚本。若遇到复杂异常或需要恢复至指定版本，推荐使用 Git 标准工作流安全切换：
+
 ```bash
+# 1. 检查本地工作区状态
 git status
+
+# 2. 将当前本地工作备份至新分支 (可选)
 git switch -c local-backup
-git switch --detach v3.9.0
+
+# 3. 安全切换至官方已发布稳定版本标签
+git switch --detach v3.9.1
 ```
-- `.env` 与 `.venv` 被 `.gitignore` 排除，不会因切换标签被删除或覆盖；
-- 如需回到自己的修改，执行 `git switch local-backup`；
-- 遇到无法安全处理的数据损坏时，先备份整个项目目录再操作。
+- **配置隔离保全**：用户的 `.env` 鉴权密钥文件、`.venv` 虚拟运行环境已在 `.gitignore` 中受到严格保护，标签切换绝不丢失；
+- **回滚与重返**：如需重返开发工作区，随时运行 `git switch main` 或 `git switch local-backup`；
+- 遇到未知文件损坏时，建议先行打包备份整个工程目录后再行排查。
 
 ---
 

@@ -14,6 +14,11 @@ import threading
 import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_MODULE_DIR)
+_DEFAULT_DICT_PATH = os.path.join(_PROJECT_ROOT, "glossary.json")
+_DEFAULT_BANK_DIR = os.path.join(_PROJECT_ROOT, "glossary_bank")
+
 
 class ACNode:
     """Aho-Corasick Automaton Trie Node.
@@ -138,9 +143,22 @@ class AhoCorasickAutomaton:
                 curr = curr.fail  # type: ignore[assignment]
             curr = curr.children.get(char, root)
             if curr.outputs:
+                text_len = len(text)
                 for pat, repl in curr.outputs:
+                    if not pat:
+                        continue
                     start_idx = i - len(pat) + 1
                     end_idx = i + 1
+                    # ASCII 单词边界保护：若模式首/尾为 ASCII 字母或数字，则其紧邻的外侧字符不得同为 ASCII 字母或数字
+                    # （避免 "AI" 误伤 "OpenAI"/"rain"，同时保留中英混排 "使用AI技术" 的正常替换）
+                    if start_idx > 0 and pat[0].isascii() and pat[0].isalnum():
+                        prev_ch = text[start_idx - 1]
+                        if prev_ch.isascii() and prev_ch.isalnum():
+                            continue
+                    if end_idx < text_len and pat[-1].isascii() and pat[-1].isalnum():
+                        next_ch = text[end_idx]
+                        if next_ch.isascii() and next_ch.isalnum():
+                            continue
                     matches.append((start_idx, end_idx, len(pat), repl))
 
         if not matches:
@@ -225,16 +243,34 @@ class GlossaryManager:
     - Cloud engine hotwords extraction for DashScope / Qwen Realtime.
     """
 
-    def __init__(self, dict_path: str = "glossary.json", bank_dir: str = "glossary_bank") -> None:
-        self.dict_path: str = os.path.abspath(dict_path)
-        if not os.path.isabs(bank_dir):
-            candidate = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), bank_dir)
+    def __init__(
+        self,
+        dict_path: Optional[str] = "glossary.json",
+        bank_dir: Optional[str] = "glossary_bank",
+    ) -> None:
+        dict_str = str(dict_path).strip() if dict_path is not None else ""
+        if not dict_str or dict_str in ("glossary.json", "./glossary.json", ".\\glossary.json"):
+            self.dict_path = _DEFAULT_DICT_PATH
+        elif not os.path.isabs(dict_str):
+            candidate = os.path.join(_PROJECT_ROOT, dict_str)
+            if os.path.exists(candidate):
+                self.dict_path = os.path.abspath(candidate)
+            else:
+                self.dict_path = os.path.abspath(dict_str)
+        else:
+            self.dict_path = os.path.abspath(dict_str)
+
+        bank_str = str(bank_dir).strip() if bank_dir is not None else ""
+        if not bank_str or bank_str in ("glossary_bank", "./glossary_bank", ".\\glossary_bank"):
+            self.bank_dir = _DEFAULT_BANK_DIR
+        elif not os.path.isabs(bank_str):
+            candidate = os.path.join(_PROJECT_ROOT, bank_str)
             if os.path.exists(candidate):
                 self.bank_dir = os.path.abspath(candidate)
             else:
-                self.bank_dir = os.path.abspath(bank_dir)
+                self.bank_dir = os.path.abspath(bank_str)
         else:
-            self.bank_dir = os.path.abspath(bank_dir)
+            self.bank_dir = os.path.abspath(bank_str)
 
         self._lock: threading.RLock = threading.RLock()
         self._data: Dict[str, Any] = {
@@ -654,6 +690,136 @@ class GlossaryManager:
         # Cloud API Safe Capping at 900
         safe_cap = 900
         return ordered[:safe_cap]
+
+    def get_corpus_phrases(
+        self,
+        channel: Optional[str] = None,
+        target_lang: Optional[str] = None,
+        limit: int = 900,
+    ) -> Dict[str, str]:
+        """Extract structured domain phrases (source -> target) for cloud translation engine.
+
+        Follows strict priority cascade:
+          P0: In-memory session temporary VIP dictionary (_session_data)
+          P1: User permanent dictionary (_data) + Base emergency pack (00_base_emergency)
+          P2: Active high-frequency category packs (tier == 'high_frequency')
+          P3: Active rare / specialized category packs (tier == 'rare')
+
+        Conflict resolution: Higher priority strictly overrides lower priority (P0 > P1 > P2 > P3).
+        Truncation: Smartly caps at limit (default <= 900) preserving higher-priority terms first.
+        """
+        target_norm = str(target_lang).strip().lower() if target_lang else ""
+        channel_norm = str(channel).strip().lower() if channel else ""
+
+        if target_norm.startswith(("zh", "cn", "chi")) or target_norm in ("中文", "汉语", "华语"):
+            cat = "terms_en_to_zh"
+        elif target_norm.startswith(("en", "eng")) or target_norm in ("英文", "英语"):
+            cat = "terms_zh_to_en"
+        elif channel_norm in ("zh", "b", "channel_b", "en-zh", "en_to_zh", "zh_cn", "zh-cn", "英译中", "chinese", "中文"):
+            cat = "terms_en_to_zh"
+        elif channel_norm in ("en", "a", "channel_a", "zh-en", "ch_to_en", "zh_to_en", "中译英", "english", "英文"):
+            cat = "terms_zh_to_en"
+        else:
+            cat = "terms_zh_to_en"
+
+        try:
+            if limit is not None and float(limit) <= 0:
+                return {}
+            safe_limit = 900 if limit is None else max(0, int(limit))
+        except (ValueError, TypeError, OverflowError):
+            safe_limit = 900
+        if safe_limit <= 0:
+            return {}
+
+        with self._lock:
+            # 1. P0: Session VIP dictionary
+            p0_dict = dict(self._session_data.get(cat, {}))
+
+            # 2. P1: User Permanent dictionary & Emergency pack
+            p1_user_dict = dict(self._data.get(cat, {}))
+            p1_emergency_dicts: List[Dict[str, str]] = []
+
+            # 3. P2: High-frequency packs
+            p2_dicts: List[Dict[str, str]] = []
+
+            # 4. P3: Rare packs
+            p3_dicts: List[Dict[str, str]] = []
+
+            sorted_pids = sorted(
+                self.enabled_packs,
+                key=lambda pid: (
+                    (self._bank_packs.get(pid) or {}).get("priority", 3),
+                    pid,
+                ),
+            )
+
+            for pid in sorted_pids:
+                pack = self._bank_packs.get(pid)
+                if not pack:
+                    continue
+                tier = pack.get("tier", "rare")
+                pack_dict = pack.get(cat, {})
+                if not pack_dict:
+                    continue
+
+                if tier == "emergency" or pack.get("priority") == 1 or pid == "00_base_emergency":
+                    p1_emergency_dicts.append(pack_dict)
+                elif tier == "high_frequency" or pack.get("priority") == 2:
+                    p2_dicts.append(pack_dict)
+                else:
+                    p3_dicts.append(pack_dict)
+
+            phrases: Dict[str, str] = {}
+
+            def _ingest(src_dict: Dict[str, Any]) -> bool:
+                for k, v in src_dict.items():
+                    if k is None or v is None:
+                        continue
+                    ks = str(k).strip()
+                    vs = str(v).strip()
+                    if not ks or not vs:
+                        continue
+                    if ks not in phrases:
+                        if len(phrases) >= safe_limit:
+                            return False
+                        phrases[ks] = vs
+                return True
+
+            # Ingest in strict P0 > P1 > P2 > P3 priority order
+            if not _ingest(p0_dict):
+                return phrases
+            if not _ingest(p1_user_dict):
+                return phrases
+            for ed in p1_emergency_dicts:
+                if not _ingest(ed):
+                    return phrases
+            for hfd in p2_dicts:
+                if not _ingest(hfd):
+                    return phrases
+            for rd in p3_dicts:
+                if not _ingest(rd):
+                    return phrases
+
+            # Fallback for full corpus lookup (e.g. limit=10000 or remaining quota):
+            # Traverse remaining bank packs in _bank_packs that are not in self.enabled_packs
+            # (e.g. unselected P3 rare packs like '09_party_specialized_rare')
+            fallback_pids = sorted(
+                [pid for pid in self._bank_packs if pid not in self.enabled_packs],
+                key=lambda pid: (
+                    (self._bank_packs.get(pid) or {}).get("priority", 3),
+                    pid,
+                ),
+            )
+            for pid in fallback_pids:
+                pack = self._bank_packs.get(pid)
+                if not pack:
+                    continue
+                pack_dict = pack.get(cat, {})
+                if pack_dict:
+                    if not _ingest(pack_dict):
+                        return phrases
+
+            return phrases
 
     def get_quota_status(self) -> Dict[str, Any]:
         """Compute dual-track quota watermark, health level, and category metadata."""

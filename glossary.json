@@ -85,10 +85,8 @@
     "06_classic_idioms_high",
     "07_ai_tech_high",
     "08_spoken_slang_common",
-    "09_party_specialized_rare",
-    "10_industry_items_uncommon",
-    "11_fruits_agricultural_rare",
     "12_world_locations_ext",
-    "13_dialect_homophones_rare"
+    "13_dialect_homophones_rare",
+    "14_biomedical_clinical_expert"
   ]
 }

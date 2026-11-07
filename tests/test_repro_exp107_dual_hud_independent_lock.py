@@ -10,17 +10,22 @@
 - 修复后预期:
   100% 真实 Objective-C HUDPanelHost 实例断言通过，双窗独立锁定、独立解锁、后端分窗隔离全绿 (0 退出码)
 """
+import os
 import sys
 import unittest
 import time
 import json
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 if sys.platform != "darwin":
     raise unittest.SkipTest("EXP-107 门禁测试必须在真实 macOS 环境下执行")
 
 import AppKit
 import objc
-from tests.harness import FastAPITestClient
+from starlette.testclient import TestClient as FastAPITestClient
 
 
 class TestReproExp107DualHUDIndependentLock(unittest.TestCase):

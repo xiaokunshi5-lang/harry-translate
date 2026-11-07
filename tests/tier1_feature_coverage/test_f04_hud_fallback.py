@@ -3,7 +3,13 @@ Feature 4: Zero-Install HUD Fallback (Milestone M1).
 Verifies FastAPI route GET /hud serving float_ui.html for browser-based floating widget usage.
 """
 import os
-from tests.harness import BaseE2ETest, PROJECT_ROOT
+import sys
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from tests.harness import BaseE2ETest
 
 
 class TestFeature04HUDFallback(BaseE2ETest):
@@ -57,3 +63,9 @@ class TestFeature04HUDFallback(BaseE2ETest):
         # Checks for location.host or location.hostname in WS constructor
         has_dynamic_ws = ("location.host" in resp.text or "window.location" in resp.text)
         self.assertTrue(has_dynamic_ws, "HUD JS should dynamically compute WebSocket URL using window.location.host")
+
+
+if __name__ == "__main__":
+    import unittest
+    unittest.main()
+

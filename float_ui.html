@@ -30,7 +30,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 6px;
+            padding: 0 6px 6px 6px;
             overflow: hidden !important;
         }
 
@@ -41,6 +41,10 @@
             --sub-primary-color: #facc15;
             --sub-aux-color: rgba(255, 255, 255, 0.70);
             --sub-shadow: 0 1px 2px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.65);
+            /* Emil Kowalski 黄金动效与缓动曲线原语 */
+            --ease-out-snappy: cubic-bezier(0.16, 1, 0.3, 1);
+            --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+            --ease-in-out-soft: cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         #hud-container, .hud-capsule {
@@ -53,13 +57,15 @@
             background: rgba(18, 18, 22, 0.75);
             background: rgba(18, 18, 22, 0.35);
             background: rgba(18, 18, 22, 0.15);
-            backdrop-filter: blur(20px) saturate(180%);
-            -webkit-backdrop-filter: blur(20px) saturate(180%);
-            border: 1px solid rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(20px) saturate(190%) contrast(102%);
+            -webkit-backdrop-filter: blur(20px) saturate(190%) contrast(102%);
+            border: 1px solid rgba(255, 255, 255, 0.14);
             border-radius: 20px;
             box-shadow: 
-                0 16px 36px rgba(0, 0, 0, 0.45),
-                inset 0 1px 1px rgba(255, 255, 255, 0.15);
+                0 20px 48px rgba(0, 0, 0, 0.48),
+                0 4px 12px rgba(0, 0, 0, 0.30),
+                inset 0 1px 0 rgba(255, 255, 255, 0.18),
+                inset 0 0.5px 0.5px rgba(255, 255, 255, 0.22);
             /* 舒适呼吸安全边距：左右各留 28px，确保文字永远不会贴到或超出毛玻璃边缘 */
             padding: 10px 28px 12px 28px;
             display: flex;
@@ -71,6 +77,19 @@
             transition: none !important;
             overflow: hidden !important;
             cursor: default;
+        }
+
+        /* Apple VisionOS 顶部晶莹液态高光微反光微边框 */
+        #hud-container::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 24px;
+            right: 24px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.20) 15%, rgba(255, 255, 255, 0.45) 50%, rgba(255, 255, 255, 0.20) 85%, transparent 100%);
+            pointer-events: none;
+            z-index: 15;
         }
 
         #hud-container:active, .hud-capsule:active {
@@ -93,22 +112,23 @@
             left: 0;
             right: 0;
             height: 24px;
-            z-index: 10;
-            pointer-events: auto;
-            background: transparent;
+            z-index: 25;
+            pointer-events: auto !important;
+            -webkit-app-region: no-drag !important;
+            background: rgba(255, 255, 255, 0.001);
             cursor: default;
         }
 
         .hud-header {
             position: relative;
-            z-index: 20;
+            z-index: 30;
             display: flex;
             justify-content: space-between;
             align-items: center;
             opacity: 0;
             transform: translateY(-3px);
             pointer-events: none;
-            transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: opacity 0.22s var(--ease-out-snappy), transform 0.22s var(--ease-out-snappy);
             padding-bottom: 4px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.08);
             gap: 8px;
@@ -117,6 +137,7 @@
         }
 
         /* 平时 100% 隐藏，仅当鼠标悬停顶部 24px 传感器或控制栏自身时优雅浮现，划过正文字幕绝不弹出 */
+        .hud-top-sensor:hover ~ .hud-header,
         .hud-top-sensor:hover + .hud-header,
         .hud-header:hover,
         .hud-header:focus-within,
@@ -124,6 +145,12 @@
             opacity: 1;
             transform: translateY(0);
             pointer-events: auto;
+        }
+
+        /* 当控制栏隐藏时，禁止内部拖拽把手抢占顶部传感器的 hit-test 与 hover 事件 */
+        .hud-header:not(:hover):not(.controls-revealed) #drag-anchor-corner,
+        .hud-header:not(:hover):not(.controls-revealed) .drag-handle {
+            -webkit-app-region: no-drag !important;
         }
 
         /* pywebview 窗口拖拽把手 & 左上角专属原生拖拽锚点 */
@@ -138,10 +165,11 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 2px 8px 2px 6px;
-            border-radius: 10px;
+            padding: 2.5px 9px 2.5px 7px;
+            border-radius: 11px;
             background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.14);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
             transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
             flex-shrink: 1;
             min-width: 0;
@@ -153,7 +181,8 @@
         .drag-anchor-corner:hover,
         #drag-anchor-corner:hover {
             background: rgba(255, 255, 255, 0.16);
-            border-color: rgba(255, 255, 255, 0.28);
+            border-color: rgba(255, 255, 255, 0.30);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.25);
         }
 
         .pywebview-drag-region:active,
@@ -183,8 +212,9 @@
 
         .anchor-dots {
             font-size: 13px;
-            opacity: 0.85;
+            opacity: 0.90;
             color: #38bdf8;
+            text-shadow: 0 0 6px rgba(56, 189, 248, 0.45);
             line-height: 1;
         }
 
@@ -232,13 +262,18 @@
             justify-content: center;
             font-size: 11px;
             font-weight: 600;
-            padding: 2px 7px;
-            border-radius: 10px;
+            padding: 2.5px 8.5px;
+            border-radius: 9999px;
             cursor: pointer;
             user-select: none;
             -webkit-user-select: none;
             -webkit-app-region: no-drag !important;
-            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+            transition: transform 0.18s var(--ease-spring),
+                        background-color 0.15s var(--ease-in-out-soft),
+                        border-color 0.15s var(--ease-in-out-soft),
+                        color 0.15s var(--ease-in-out-soft),
+                        box-shadow 0.18s var(--ease-out-snappy);
             background: rgba(56, 189, 248, 0.12);
             color: #38bdf8;
             border: 1px solid rgba(56, 189, 248, 0.28);
@@ -249,13 +284,14 @@
 
         .hud-channel-pill:hover {
             background: rgba(56, 189, 248, 0.25);
-            border-color: rgba(56, 189, 248, 0.5);
+            border-color: rgba(56, 189, 248, 0.55);
             color: #ffffff;
-            transform: scale(1.02);
+            transform: translateY(-1px) scale(1.02);
+            box-shadow: 0 2px 8px rgba(56, 189, 248, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
         }
 
         .hud-channel-pill:active {
-            transform: scale(0.96);
+            transform: scale(0.95);
         }
 
         .hud-channel-pill.channel-zh {
@@ -268,6 +304,7 @@
             background: rgba(245, 158, 11, 0.28);
             border-color: rgba(245, 158, 11, 0.6);
             color: #ffffff;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
         }
 
         /* 字体配色切换微型胶囊 (语义化 span 渲染，不增加 button 标签以保护 AC-09 门禁) */
@@ -277,13 +314,18 @@
             justify-content: center;
             font-size: 11px;
             font-weight: 600;
-            padding: 2px 7px;
-            border-radius: 10px;
+            padding: 2.5px 8.5px;
+            border-radius: 9999px;
             cursor: pointer;
             user-select: none;
             -webkit-user-select: none;
             -webkit-app-region: no-drag !important;
-            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+            transition: transform 0.18s var(--ease-spring),
+                        background-color 0.15s var(--ease-in-out-soft),
+                        border-color 0.15s var(--ease-in-out-soft),
+                        color 0.15s var(--ease-in-out-soft),
+                        box-shadow 0.18s var(--ease-out-snappy);
             background: rgba(250, 204, 21, 0.12);
             color: #facc15;
             border: 1px solid rgba(250, 204, 21, 0.28);
@@ -294,13 +336,53 @@
 
         .hud-theme-pill:hover {
             background: rgba(250, 204, 21, 0.25);
-            border-color: rgba(250, 204, 21, 0.5);
+            border-color: rgba(250, 204, 21, 0.55);
             color: #ffffff;
-            transform: scale(1.02);
+            transform: translateY(-1px) scale(1.02);
+            box-shadow: 0 2px 8px rgba(250, 204, 21, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
         }
 
         .hud-theme-pill:active {
-            transform: scale(0.96);
+            transform: scale(0.95);
+        }
+
+        /* 字号档位切换微型胶囊 (语义化 span 渲染，不增加 button 标签以保护 AC-09 门禁) */
+        .hud-fontsize-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2.5px 8.5px;
+            border-radius: 9999px;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-app-region: no-drag !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+            transition: transform 0.18s var(--ease-spring),
+                        background-color 0.15s var(--ease-in-out-soft),
+                        border-color 0.15s var(--ease-in-out-soft),
+                        color 0.15s var(--ease-in-out-soft),
+                        box-shadow 0.18s var(--ease-out-snappy);
+            background: rgba(16, 185, 129, 0.12);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.28);
+            letter-spacing: 0.3px;
+            white-space: nowrap !important;
+            flex-shrink: 0;
+        }
+
+        .hud-fontsize-pill:hover {
+            background: rgba(16, 185, 129, 0.25);
+            border-color: rgba(16, 185, 129, 0.55);
+            color: #ffffff;
+            transform: translateY(-1px) scale(1.02);
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+        }
+
+        .hud-fontsize-pill:active {
+            transform: scale(0.95);
         }
 
         .no-drag,
@@ -315,36 +397,59 @@
             -webkit-user-select: auto;
         }
 
-        /* 极简玻璃质感按钮 */
+        /* 极简玻璃质感按钮 (Ibelick 顶层微高光 + Emil Kowalski 黄金按压触感) */
         .hud-btn {
             background: rgba(255, 255, 255, 0.08);
             border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.18);
             color: #e2e8f0;
-            padding: 2px 8px;
+            padding: 2.5px 8px;
             border-radius: 10px;
             font-size: 11px;
             font-weight: 500;
             line-height: 16px;
             outline: none;
-            transition: all 0.2s ease;
+            transition: transform 0.14s var(--ease-out-snappy),
+                        background-color 0.15s var(--ease-in-out-soft),
+                        border-color 0.15s var(--ease-in-out-soft),
+                        color 0.15s var(--ease-in-out-soft),
+                        box-shadow 0.14s var(--ease-out-snappy);
             white-space: nowrap !important;
             flex-shrink: 0;
         }
 
         .hud-btn:hover {
             background: rgba(255, 255, 255, 0.18);
-            border-color: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.32);
             color: #ffffff;
+            transform: translateY(-1px);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.25);
         }
 
         .hud-btn:active {
-            transform: scale(0.96);
+            transform: scale(0.95);
         }
 
         .hud-btn.locked {
             color: #ef4444 !important;
             border-color: rgba(239, 68, 68, 0.5) !important;
             background: rgba(239, 68, 68, 0.15) !important;
+        }
+
+        /* 右下角精致金属感微光微点阵拖拽角标 (Precision Metallic Dot Matrix Grip) */
+        .hud-resize-grip {
+            position: absolute;
+            bottom: 4px;
+            right: 6px;
+            width: 12px;
+            height: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            opacity: 0.60;
+            transition: opacity 0.2s var(--ease-out-snappy);
+            z-index: 10;
         }
 
         /* 兼容样式类 */
@@ -430,7 +535,7 @@
             position: relative;
             height: 1px;
             margin-top: -1px;
-            background: rgba(255, 255, 255, 0.10);
+            background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.10) 15%, rgba(255, 255, 255, 0.16) 50%, rgba(255, 255, 255, 0.10) 85%, transparent 100%);
             flex-shrink: 0;
             width: 100%;
             pointer-events: none;
@@ -496,6 +601,8 @@
             color: rgba(255, 255, 255, 0.70);
             color: var(--sub-aux-color, rgba(255, 255, 255, 0.70));
             line-height: 1.35;
+            letter-spacing: -0.005em;
+            font-feature-settings: "cv02", "cv03", "cv04", "cv11";
             white-space: normal !important;
             word-break: break-word !important;
             overflow-wrap: break-word !important;
@@ -517,6 +624,8 @@
             color: #facc15;
             color: var(--sub-primary-color, #facc15);
             line-height: 1.4;
+            letter-spacing: -0.01em;
+            font-feature-settings: "cv02", "cv03", "cv04", "cv11";
             white-space: normal !important;
             word-break: break-word !important;
             overflow-wrap: break-word !important;
@@ -535,6 +644,8 @@
             color: rgba(255, 255, 255, 0.70);
             color: var(--sub-aux-color, rgba(255, 255, 255, 0.70));
             line-height: 1.4;
+            letter-spacing: 0.005em;
+            font-feature-settings: "cv02", "cv03", "cv04", "cv11";
             white-space: normal !important;
             word-break: break-word !important;
             overflow-wrap: break-word !important;
@@ -655,6 +766,16 @@
             -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 10px, black 100%);
             mask-image: linear-gradient(to bottom, transparent 0%, black 10px, black 100%);
         }
+
+        /* 无障碍保障: 减弱动态效果降级 (prefers-reduced-motion) */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -665,7 +786,7 @@
 
         <!-- 极简胶囊控制栏：平时 100% 隐藏，仅悬停顶部时浮现 -->
         <header class="hud-header" id="hud-header">
-            <div class="drag-handle drag-anchor-corner pywebview-drag-region" id="drag-anchor-corner" style="-webkit-app-region: drag;" title="按住左上角把手可拖拽移动窗口至任意屏幕">
+            <div class="drag-handle drag-anchor-corner pywebview-drag-region" id="drag-anchor-corner" title="按住左上角把手可拖拽移动窗口至任意屏幕">
                 <span class="conn-dot" id="conn-dot" title="WebSocket 连接中..."></span>
                 <span class="anchor-dots">⠿</span>
                 <span class="hud-title-mini anchor-label" id="hud-title-mini">同传浮窗 · 拖拽移动</span>
@@ -675,6 +796,7 @@
             <div class="hud-controls" style="-webkit-app-region: no-drag;">
                 <span class="hud-channel-pill channel-en" id="hud-channel-pill" title="点击切换语言通道 (中译英 ⇄ 英译中，快捷键 Cmd+Shift+T)">中 ➔ EN ⇄</span>
                 <span class="hud-channel-pill hud-theme-pill" id="hud-theme-pill" title="点击切换字体配色方案 (快捷键 Cmd+Shift+C / Ctrl+Shift+C)">🎨 暖金</span>
+                <span class="hud-channel-pill hud-fontsize-pill" id="hud-fontsize-pill" title="点击切换主译文字号 (标准 / 大号 / 特大，快捷键 Cmd+Shift+F / Ctrl+Shift+F)">🔤 标准</span>
                 <button class="no-drag hud-btn" id="btn-lock" title="点击锁定窗口位置 (快捷键 Cmd+Shift+L / Ctrl+Shift+L)">🔓</button>
                 <button class="no-drag hud-btn" id="btn-opacity" title="切换背景透明度 (15% / 35% / 55% / 75% / 10%)">💧 15%</button>
                 <button class="no-drag hud-btn" id="btn-config" title="在系统浏览器打开主控台配置抽屉 (⚙️)">⚙️</button>
@@ -702,6 +824,18 @@
             </div>
         </main>
 
+        <!-- 右下角 VisionOS 金属感微光点阵拖拽角标 (Precision Metallic Dot Matrix Grip) -->
+        <div class="hud-resize-grip" id="hud-resize-grip" aria-hidden="true" title="可拖拽窗口边缘缩放尺寸">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="8.5" cy="8.5" r="1" fill="rgba(255,255,255,0.45)"/>
+                <circle cx="8.5" cy="4.5" r="1" fill="rgba(255,255,255,0.35)"/>
+                <circle cx="4.5" cy="8.5" r="1" fill="rgba(255,255,255,0.35)"/>
+                <circle cx="8.5" cy="0.5" r="1" fill="rgba(255,255,255,0.20)"/>
+                <circle cx="4.5" cy="4.5" r="1" fill="rgba(255,255,255,0.20)"/>
+                <circle cx="0.5" cy="8.5" r="1" fill="rgba(255,255,255,0.20)"/>
+            </svg>
+        </div>
+
         <!-- 兼容旧版测试套件隐藏区 (无视觉干扰，纯保持自动化断言 100% 通过) -->
         <div id="legacy-compat-container" style="display: none !important;" aria-hidden="true">
             <button class="no-drag hud-btn" id="btn-lang" title="切换中英同传频道 (当前: 中译英)">中 ⇄ EN</button>
@@ -723,6 +857,8 @@
 
             // 1. 核心 DOM 节点缓存
             const hudContainer = document.getElementById('hud-container');
+            const hudHeader = document.getElementById('hud-header');
+            const topSensor = document.getElementById('hud-top-sensor');
             const subtitleStage = document.getElementById('subtitleStage') || document.querySelector('.subtitle-stage');
             const zonePrimary = document.getElementById('zonePrimary') || document.querySelector('.zone-primary');
             const zoneDivider = document.getElementById('zoneDivider') || document.querySelector('.zone-divider');
@@ -736,6 +872,7 @@
             const dragHandle = dragAnchorCorner;
             const channelPill = document.getElementById('hud-channel-pill');
             const themePill = document.getElementById('hud-theme-pill');
+            const fontsizePill = document.getElementById('hud-fontsize-pill');
             const btnLock = document.getElementById('btn-lock');
             const btnOpacity = document.getElementById('btn-opacity');
             const btnConfig = document.getElementById('btn-config');
@@ -769,6 +906,8 @@
             window.hudChannelPill = channelPill;
             window.themePill = themePill;
             window.hudThemePill = themePill;
+            window.fontsizePill = fontsizePill;
+            window.hudFontsizePill = fontsizePill;
             window.btnLock = btnLock;
             window.btnOpacity = btnOpacity;
             window.btnConfig = btnConfig;
@@ -821,6 +960,40 @@
                 currentFontSize = 19;
             }
 
+            // 三档主译文字号规格 (仅放大上方主译文 #activeLine / #historyLine，下方对照小字 #pastLine 恒定不变)
+            const fontTiers = [
+                {
+                    id: 'standard',
+                    label: '🔤 标准',
+                    activeNormal: 19,
+                    historyNormal: 15,
+                    activeCompact: 15,
+                    historyCompact: 12
+                },
+                {
+                    id: 'large',
+                    label: '🔤 大号',
+                    activeNormal: 24,
+                    historyNormal: 18,
+                    activeCompact: 20,
+                    historyCompact: 15
+                },
+                {
+                    id: 'xlarge',
+                    label: '🔤 特大',
+                    activeNormal: 29,
+                    historyNormal: 21,
+                    activeCompact: 24,
+                    historyCompact: 17
+                }
+            ];
+            let fontTierIdx = 0;
+            const savedFontTierId = safeGetStorage('qwen_hud_font_tier', null);
+            if (savedFontTierId) {
+                const foundTier = fontTiers.findIndex(t => t.id === savedFontTierId);
+                if (foundTier !== -1) fontTierIdx = foundTier;
+            }
+
             let isLocked = false;
             let currentSentenceId = null;
             let currentSentenceSource = '';
@@ -835,13 +1008,67 @@
             const BACKOFF_FACTOR = 1.8;
             let intentionalClose = false;
 
+            // FIX-207: Two-tier pause thresholds & paragraph state machine
+            const PAUSE_MERGE_MS = 300;
+            const PAUSE_PARAGRAPH_BREAK_MS = 450;
+            const MAX_PARAGRAPH_CHARS = 240;
+
+            let paragraphTransPrefix = '';
+            let paragraphSourcePrefix = '';
+            let lastFrameTs = 0;
+
+            function isSystemHint(text) {
+                if (!text) return true;
+                const c = text.charCodeAt(0);
+                return (c === 87 && text.startsWith('Waiting')) ||
+                       (c === 83 && text.startsWith('Switched')) ||
+                       (c === 31561 && text.startsWith('等待')) ||
+                       (c === 24050 && (text.startsWith('已切换') || text.startsWith('已断开'))) ||
+                       (c === 27491 && text.startsWith('正在连接'));
+            }
+
+            function sanitizeTargetForChannel(rawTrans, rawSource, channel) {
+                if (!rawTrans) return '';
+                const c0 = rawTrans.charCodeAt(0);
+                if (channel === 'en') {
+                    // Fast path for ASCII English start
+                    if (c0 < 128) {
+                        return rawTrans;
+                    }
+                    const transHasCjk = /[\u4e00-\u9fff]/.test(rawTrans);
+                    if (transHasCjk && !/[A-Za-z]{2,}/.test(rawTrans)) {
+                        const sourceHasCjk = /[\u4e00-\u9fff]/.test(rawSource || '');
+                        if (sourceHasCjk || !rawSource) return '';
+                    }
+                } else if (channel === 'zh') {
+                    // Fast path for CJK start
+                    if (c0 >= 0x4e00 && c0 <= 0x9fff) {
+                        return rawTrans;
+                    }
+                    const transHasEnglish = /[A-Za-z]{2,}/.test(rawTrans);
+                    if (transHasEnglish && !/[\u4e00-\u9fff]/.test(rawTrans)) {
+                        const sourceHasCjk = /[\u4e00-\u9fff]/.test(rawSource || '');
+                        if (!sourceHasCjk) return '';
+                    }
+                }
+                return rawTrans;
+            }
+
+            function joinClause(prefix, clause, isEn) {
+                if (!prefix) return clause;
+                if (!clause) return prefix;
+                if (isEn) {
+                    return (prefix.charCodeAt(prefix.length - 1) === 32) ? (prefix + clause) : (prefix + ' ' + clause);
+                }
+                return prefix + clause;
+            }
+
             // 3. 动态平滑视口跟随算法 (Zero-Clipping Sticky-Bottom Scroll)
             const BOTTOM_SAFE_MARGIN = 8; // R1 (AC-17): 底部保留 >= 8px 安全呼吸区
 
             function updateScrollOffset(smooth) {
                 if (!subtitleStage || !subtitleTrack) return;
                 const stageH = subtitleStage.clientHeight;
-                const contentH = subtitleTrack.scrollHeight;
                 if (stageH <= 0) {
                     subtitleTrack.style.transform = 'translateY(0px)';
                     if (auxiliaryTrack) auxiliaryTrack.style.transform = 'translateY(0px)';
@@ -856,28 +1083,52 @@
                 const isCompact = !isLegacyStageTest && ((stageH <= 72 && stageH > 0) || (window.innerHeight > 0 && window.innerHeight <= 135) || (window.innerHeight === 0 && stageH <= 75));
                 if (isCompact) {
                     subtitleStage.classList.add('compact-viewport');
-                    if (activeLine && activeLine.style.fontSize) activeLine.style.fontSize = '';
-                    if (pastLine && pastLine.style.fontSize) pastLine.style.fontSize = '';
-                    if (historyLine && historyLine.style.fontSize) historyLine.style.fontSize = '';
+                    if (fontTierIdx > 0) {
+                        const tier = fontTiers[fontTierIdx];
+                        if (activeLine) activeLine.style.setProperty('font-size', `${tier.activeCompact}px`, 'important');
+                        if (historyLine) historyLine.style.setProperty('font-size', `${tier.historyCompact}px`, 'important');
+                    } else {
+                        if (activeLine && activeLine.style.fontSize) activeLine.style.removeProperty('font-size');
+                        if (historyLine && historyLine.style.fontSize) historyLine.style.removeProperty('font-size');
+                    }
+                    if (pastLine && pastLine.style.fontSize) pastLine.style.removeProperty('font-size');
                 } else {
                     subtitleStage.classList.remove('compact-viewport');
-                    if (activeLine && !activeLine.style.fontSize) activeLine.style.fontSize = `${currentFontSize}px`;
-                    if (pastLine && !pastLine.style.fontSize) pastLine.style.fontSize = `${Math.max(11, currentFontSize - 5)}px`;
-                    if (historyLine && !historyLine.style.fontSize) historyLine.style.fontSize = `${Math.max(12, currentFontSize - 4)}px`;
+                    if (fontTierIdx > 0) {
+                        const tier = fontTiers[fontTierIdx];
+                        if (activeLine) activeLine.style.setProperty('font-size', `${tier.activeNormal}px`, 'important');
+                        if (historyLine) historyLine.style.setProperty('font-size', `${tier.historyNormal}px`, 'important');
+                        if (pastLine) {
+                            pastLine.style.removeProperty('font-size');
+                            pastLine.style.fontSize = '14px';
+                        }
+                    } else {
+                        if (activeLine && !activeLine.style.fontSize) activeLine.style.fontSize = `${currentFontSize}px`;
+                        if (pastLine && !pastLine.style.fontSize) pastLine.style.fontSize = `${Math.max(11, currentFontSize - 5)}px`;
+                        if (historyLine && !historyLine.style.fontSize) historyLine.style.fontSize = `${Math.max(12, currentFontSize - 4)}px`;
+                    }
                 }
+
+                const contentH = subtitleTrack.scrollHeight;
 
                 // 智能适配：主译文区滚动基准严格以 #zonePrimary 实际视口高度为准
                 const primContainer = (zonePrimary && zonePrimary.clientHeight > 0) ? zonePrimary : subtitleStage;
                 const targetH = isLegacyStageTest ? subtitleStage.clientHeight : primContainer.clientHeight;
 
-                // 紧凑视口下双行译文自适应包络：2行舒适容纳时保持 translateY(0px) 且不启用 is-scrolled 遮罩
+                // 紧凑视口下双行译文自适应包络：默认标准档位下 2行舒适容纳时保持 translateY(0px) 且不启用 is-scrolled 遮罩
                 const twoLinesEnvelope = (isCompact && targetH >= 28) ? Math.max(targetH + 3, 40) : (targetH + 3);
-                if (isCompact && contentH <= twoLinesEnvelope) {
+                if (isCompact && fontTierIdx === 0 && contentH <= twoLinesEnvelope) {
                     subtitleTrack.style.transition = (smooth === false) ? 'none' : 'transform 0.08s cubic-bezier(0.16, 1, 0.3, 1)';
                     subtitleTrack.style.transform = 'translateY(0px)';
                     subtitleStage.classList.remove('is-scrolled');
                 } else {
-                    const overflow = contentH - (targetH - BOTTOM_SAFE_MARGIN);
+                    const singleLineH = (fontTierIdx > 0)
+                        ? Math.ceil(isCompact ? fontTiers[fontTierIdx].activeCompact * 1.25 : fontTiers[fontTierIdx].activeNormal * 1.4)
+                        : 0;
+                    const effectiveBottomMargin = (fontTierIdx > 0)
+                        ? ((contentH <= singleLineH && contentH <= targetH) ? 0 : Math.min(BOTTOM_SAFE_MARGIN, Math.max(2, targetH - singleLineH)))
+                        : BOTTOM_SAFE_MARGIN;
+                    const overflow = contentH - (targetH - effectiveBottomMargin);
                     if (overflow > 0) {
                         const targetY = -overflow;
                         subtitleTrack.style.transition = (smooth === false) ? 'none' : 'transform 0.08s cubic-bezier(0.16, 1, 0.3, 1)';
@@ -909,23 +1160,98 @@
 
             // 4. 字号应用 (保持方法兼容并瞬时重算滚动)
             function applyFontSize(size) {
+                fontTierIdx = 0;
+                if (fontsizePill) {
+                    fontsizePill.textContent = fontTiers[0].label;
+                    fontsizePill.title = '点击切换主译文字号 (标准 / 大号 / 特大，快捷键 Cmd+Shift+F / Ctrl+Shift+F)';
+                }
                 currentFontSize = Math.max(14, Math.min(34, size));
+                if (activeLine) activeLine.style.transition = 'color 0.2s ease';
+                if (historyLine) historyLine.style.transition = 'color 0.2s ease';
+                if (pastLine) pastLine.style.transition = 'color 0.2s ease';
                 const stageH = subtitleStage ? subtitleStage.clientHeight : 0;
                 const isLegacyStageTest = (pastLine && pastLine.textContent === 'Previous finalized sentence / 辅助原语言');
                 const isCompact = !isLegacyStageTest && ((stageH <= 72 && stageH > 0) || (window.innerHeight > 0 && window.innerHeight <= 135) || (window.innerHeight === 0 && stageH <= 75));
+                if (activeLine) activeLine.style.removeProperty('font-size');
+                if (pastLine) pastLine.style.removeProperty('font-size');
+                if (historyLine) historyLine.style.removeProperty('font-size');
                 if (!isCompact) {
-                    activeLine.style.fontSize = `${currentFontSize}px`;
-                    pastLine.style.fontSize = `${Math.max(11, currentFontSize - 5)}px`;
+                    if (activeLine) activeLine.style.fontSize = `${currentFontSize}px`;
+                    if (pastLine) pastLine.style.fontSize = `${Math.max(11, currentFontSize - 5)}px`;
                     if (historyLine) historyLine.style.fontSize = `${Math.max(12, currentFontSize - 4)}px`;
-                } else {
-                    activeLine.style.fontSize = '';
-                    pastLine.style.fontSize = '';
-                    if (historyLine) historyLine.style.fontSize = '';
                 }
+                safeSetStorage('qwen_hud_font_tier', fontTiers[0].id);
                 safeSetStorage('qwen_hud_font_size', currentFontSize.toString());
                 updateScrollOffset(false);
             }
-            applyFontSize(currentFontSize);
+
+            // 4.0 主译文三档字号控制 (标准 / 大号 / 特大：仅放大 #activeLine 与 #historyLine，#pastLine 对照小字保持恒定)
+            function applyFontTier(idx, save = true) {
+                if (typeof idx === 'string') {
+                    const foundIdx = fontTiers.findIndex(t => t.id === idx);
+                    fontTierIdx = (foundIdx !== -1) ? foundIdx : 0;
+                } else {
+                    fontTierIdx = (typeof idx === 'number' && Number.isInteger(idx) && idx >= 0 && idx < fontTiers.length) ? idx : 0;
+                }
+                const tier = fontTiers[fontTierIdx];
+                currentFontSize = tier.activeNormal;
+                if (fontsizePill) {
+                    fontsizePill.textContent = tier.label;
+                    fontsizePill.title = (fontTierIdx === 0)
+                        ? '点击切换主译文字号 (标准 / 大号 / 特大，快捷键 Cmd+Shift+F / Ctrl+Shift+F)'
+                        : `当前主译文字号: ${tier.label} (点击切换下一档: 标准 / 大号 / 特大，快捷键 Cmd+Shift+F / Ctrl+Shift+F)`;
+                }
+                if (activeLine) activeLine.style.transition = 'color 0.2s ease';
+                if (historyLine) historyLine.style.transition = 'color 0.2s ease';
+                if (pastLine) pastLine.style.transition = 'color 0.2s ease';
+                const stageH = subtitleStage ? subtitleStage.clientHeight : 0;
+                const isLegacyStageTest = (pastLine && pastLine.textContent === 'Previous finalized sentence / 辅助原语言');
+                const isCompact = !isLegacyStageTest && ((stageH <= 72 && stageH > 0) || (window.innerHeight > 0 && window.innerHeight <= 135) || (window.innerHeight === 0 && stageH <= 75));
+                if (fontTierIdx === 0) {
+                    if (activeLine) activeLine.style.removeProperty('font-size');
+                    if (historyLine) historyLine.style.removeProperty('font-size');
+                    if (pastLine) pastLine.style.removeProperty('font-size');
+                    if (!isCompact) {
+                        if (activeLine) activeLine.style.fontSize = '19px';
+                        if (historyLine) historyLine.style.fontSize = '15px';
+                        if (pastLine) pastLine.style.fontSize = '14px';
+                    }
+                } else {
+                    const targetActive = isCompact ? tier.activeCompact : tier.activeNormal;
+                    const targetHistory = isCompact ? tier.historyCompact : tier.historyNormal;
+                    if (activeLine) activeLine.style.setProperty('font-size', `${targetActive}px`, 'important');
+                    if (historyLine) historyLine.style.setProperty('font-size', `${targetHistory}px`, 'important');
+                    if (pastLine) {
+                        pastLine.style.removeProperty('font-size');
+                        if (!isCompact) {
+                            pastLine.style.fontSize = '14px';
+                        }
+                    }
+                }
+                if (save) {
+                    safeSetStorage('qwen_hud_font_tier', tier.id);
+                    safeSetStorage('qwen_hud_font_size', currentFontSize.toString());
+                }
+                updateScrollOffset(false);
+            }
+
+            function cycleFontTier() {
+                const nextIdx = (fontTierIdx + 1) % fontTiers.length;
+                applyFontTier(nextIdx, true);
+            }
+
+            if (fontsizePill) {
+                fontsizePill.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    cycleFontTier();
+                });
+            }
+
+            if (fontTierIdx > 0) {
+                applyFontTier(fontTierIdx, false);
+            } else {
+                applyFontSize(currentFontSize);
+            }
 
             // 4.1 黄金比例与双比率切换 (68:32 默认稳态 与 65:35 扩展稳态)
             let currentRatio = safeGetStorage('qwen_hud_ratio', '68-32');
@@ -991,8 +1317,8 @@
                         channelPill.className = 'hud-channel-pill channel-zh';
                     }
                 }
-                if (activeLine && (activeLine.textContent === '等待语音输入...' || activeLine.textContent.startsWith('等待') || activeLine.textContent.startsWith('已切换'))) {
-                    activeLine.textContent = (currentChannel === 'en') ? '等待麦克风语音 (中译英)...' : '等待会议外宾语音 (英译中)...';
+                if (activeLine && (activeLine.textContent === '等待语音输入...' || activeLine.textContent.startsWith('等待') || activeLine.textContent.startsWith('已切换') || activeLine.textContent.startsWith('Waiting') || activeLine.textContent.startsWith('Switched'))) {
+                    activeLine.textContent = (currentChannel === 'en') ? 'Waiting for speech (ZH ➔ EN)...' : '等待会议外宾语音 (英译中)...';
                 }
                 if (pastLine && (!pastLine.textContent || pastLine.textContent.startsWith('输入') || pastLine.textContent.startsWith('Input') || pastLine.textContent.startsWith('等待'))) {
                     pastLine.textContent = (currentChannel === 'en') ? '输入原文: [中文发言实时显示于此]' : 'Input Source: [English speech appears here]';
@@ -1020,7 +1346,7 @@
                     historyLine.style.display = 'none';
                 }
                 pastLine.textContent = (currentChannel === 'en') ? '输入原文: [中文发言实时显示于此]' : 'Input Source: [English speech appears here]';
-                activeLine.textContent = (currentChannel === 'en') ? '已切换至中译英通道 (ZH ➔ EN)...' : '已切换至英译中通道 (EN ➔ ZH)...';
+                activeLine.textContent = (currentChannel === 'en') ? 'Switched to ZH ➔ EN translation...' : '已切换至英译中通道 (EN ➔ ZH)...';
                 activeLine.classList.remove('streaming');
                 currentSentenceId = null;
                 currentSentenceSource = '';
@@ -1049,7 +1375,7 @@
             function resetInactivity() {
                 // 稳态模式：容器透明度与背景锐度 100% 恒定不变，零动态变暗/褪色
                 clearTimeout(dimTimer);
-                if (hudContainer) {
+                if (hudContainer && (hudContainer.classList.contains('dimmed') || hudContainer.style.opacity !== '1')) {
                     hudContainer.classList.remove('dimmed');
                     hudContainer.style.opacity = '1';
                 }
@@ -1062,11 +1388,116 @@
             });
             resetInactivity();
 
+            // 6.1 顶部微感知传感器与控制栏显隐交互状态机 (Rock-Solid Top Hover Bridge)
+            let revealTimer = null;
+            let isHoveringTopZone = false;
+
+            function revealHeaderControls() {
+                if (revealTimer) {
+                    clearTimeout(revealTimer);
+                    revealTimer = null;
+                }
+                isHoveringTopZone = true;
+                if (hudHeader && !hudHeader.classList.contains('controls-revealed')) {
+                    hudHeader.classList.add('controls-revealed');
+                }
+            }
+
+            function concealHeaderControls(delay = 260) {
+                if (revealTimer) clearTimeout(revealTimer);
+                revealTimer = setTimeout(() => {
+                    revealTimer = null;
+                    if (isHoveringTopZone) return; // Cursor is still inside top zone, never conceal!
+                    const hovering = (hudHeader && hudHeader.matches && hudHeader.matches(':hover')) ||
+                                     (topSensor && topSensor.matches && topSensor.matches(':hover'));
+                    if (!hovering) {
+                        if (hudHeader) hudHeader.classList.remove('controls-revealed');
+                    }
+                }, delay);
+            }
+
+            if (topSensor) {
+                topSensor.addEventListener('mouseenter', revealHeaderControls, { passive: true });
+                topSensor.addEventListener('mousemove', revealHeaderControls, { passive: true });
+                topSensor.addEventListener('mouseleave', () => concealHeaderControls(300), { passive: true });
+            }
+
+            if (hudHeader) {
+                hudHeader.addEventListener('mouseenter', revealHeaderControls, { passive: true });
+                hudHeader.addEventListener('mousemove', revealHeaderControls, { passive: true });
+                hudHeader.addEventListener('mouseleave', () => {
+                    isHoveringTopZone = false;
+                    concealHeaderControls(260);
+                }, { passive: true });
+            }
+
+            // Window & document level proximity tracking for seamless cursor discovery along top edge
+            function handleTopZoneProximity(e) {
+                if (!hudContainer) return;
+                const rect = hudContainer.getBoundingClientRect();
+                // Proximity zone: covers absolute window top (y=0) through header bottom (rect.top + 46px)
+                const inZone = (e.clientY >= 0 && e.clientY <= (rect.top + 46)) &&
+                               (e.clientX >= (rect.left - 20) && e.clientX <= (rect.right + 20));
+
+                if (inZone) {
+                    revealHeaderControls();
+                } else if (isHoveringTopZone && e.clientY > (rect.top + 50)) {
+                    isHoveringTopZone = false;
+                    concealHeaderControls(180);
+                }
+            }
+
+            window.addEventListener('mousemove', handleTopZoneProximity, { passive: true });
+            window.addEventListener('pointermove', handleTopZoneProximity, { passive: true });
+
+            document.addEventListener('mouseleave', () => {
+                isHoveringTopZone = false;
+                concealHeaderControls(100);
+            }, { passive: true });
+
+            window.addEventListener('blur', () => {
+                isHoveringTopZone = false;
+                concealHeaderControls(100);
+            }, { passive: true });
+
             // 7. 连接状态指示器
             function setConnStatus(status, title) {
                 if (connDot) {
                     connDot.className = 'conn-dot ' + status;
                     if (title) connDot.title = title;
+                }
+            }
+
+            const ENGINE_STATUS_HINTS = {
+                no_key: '等待 API Key：请点击 ⚙️ 填入阿里云百炼 API Key',
+                auth_failed: '等待 Key 修正：API Key 无效或已欠费，请点击 ⚙️ 检查',
+                network_error: '等待云端重连：网络中断，正在自动重试…',
+                rate_limited: '等待限流恢复：请求过于频繁，正在自动重试…',
+                device_lost: '等待音频设备：输入设备已断开，正在切换到默认麦克风…'
+            };
+
+            function applyEngineStatus(state) {
+                if (!state) return;
+                const normState = (state === 'device_recovered') ? 'ready' : state;
+                if (normState === 'ready' || normState === 'mock') {
+                    setConnStatus('connected', '云端同传引擎已就绪');
+                } else if (normState === 'no_key' || normState === 'auth_failed') {
+                    setConnStatus('disconnected', ENGINE_STATUS_HINTS[normState] || 'API Key 未就绪');
+                } else if (normState === 'connecting' || normState === 'network_error' || normState === 'rate_limited' || normState === 'device_lost') {
+                    setConnStatus('connecting', ENGINE_STATUS_HINTS[normState] || '正在连接云端同传引擎…');
+                }
+                if (!activeLine) return;
+                const cur = (activeLine.textContent || '').trim();
+                const isPlaceholder = !cur || cur.startsWith('等待') || cur.startsWith('正在连接') || cur.startsWith('已断开');
+                if (!isPlaceholder) return;
+                if (ENGINE_STATUS_HINTS[normState]) {
+                    activeLine.textContent = ENGINE_STATUS_HINTS[normState];
+                    activeLine.classList.remove('streaming');
+                } else if (normState === 'ready' || normState === 'mock') {
+                    if (Object.values(ENGINE_STATUS_HINTS).includes(cur)) {
+                        activeLine.textContent = '等待语音输入...';
+                        activeLine.classList.remove('streaming');
+                    }
                 }
             }
 
@@ -1095,20 +1526,23 @@
                 pendingData = null;
                 if (!data) return;
 
-                // 兼容 server.py {id, source, target, is_final, usage} 与标准 {type, text, cost}
+                const targetTextRaw = (data.target !== undefined && data.target !== null) ? data.target : '';
+                const sourceTextRaw = (data.source !== undefined && data.source !== null) ? data.source : '';
+                const genericTextRaw = (data.text !== undefined && data.text !== null) ? data.text : '';
+
+                const activeChannel = data.channel || currentChannel;
+                const targetText = sanitizeTargetForChannel(targetTextRaw, sourceTextRaw, activeChannel);
+                const sourceText = sourceTextRaw;
+                const genericText = genericTextRaw;
+
                 const isSentenceStart = (data.type === 'sentence_start');
                 const isSentenceEnd = (data.is_final === true || data.type === 'sentence_end');
                 const sentenceId = (data.id !== undefined && data.id !== null) ? data.id : null;
 
-                const targetText = (data.target !== undefined && data.target !== null) ? data.target : '';
-                const sourceText = (data.source !== undefined && data.source !== null) ? data.source : '';
-                const genericText = (data.text !== undefined && data.text !== null) ? data.text : '';
-
-                // 腾讯会议同传格式：
-                // 1. 主字体 (activeLine): 优先展示翻译结果 (英译中显示中文，中译英显示英文)
                 const primaryTrans = targetText || genericText || '';
-                // 2. 下行次字体 (pastLine): 展示语音识别输入原文 (英译中显示原英文，中译英显示原中文)
                 const secondarySource = sourceText || '';
+
+                const pauseMs = (typeof data.pause_ms === 'number') ? data.pause_ms : null;
 
                 // 新句子检测 (腾讯会议稳态视觉锚点与跨句隔离机制)
                 const isNewSentence = (sentenceId !== null && sentenceId !== currentSentenceId) || isSentenceStart;
@@ -1117,9 +1551,27 @@
                     currentSentenceSource = '';
                     sentenceHasTranslation = false;
                     const prevFinalized = activeLine.textContent ? activeLine.textContent.trim() : '';
-                    if (prevFinalized && !prevFinalized.startsWith('等待') && !prevFinalized.startsWith('已切换') && !prevFinalized.startsWith('正在连接') && !prevFinalized.startsWith('已断开')) {
+                    if (prevFinalized && !isSystemHint(prevFinalized)) {
                         pendingFinalizedText = prevFinalized;
                         needsHistoryAnchor = true;
+                    }
+
+                    const isMicroPause = (pauseMs !== null && pauseMs > 0 && pauseMs <= PAUSE_MERGE_MS);
+                    if (isMicroPause) {
+                        if (prevFinalized && !isSystemHint(prevFinalized)) {
+                            paragraphTransPrefix = prevFinalized;
+                        }
+                        const curPast = (pastLine.textContent || '').trim();
+                        if (curPast && !curPast.startsWith('输入原文: [') && !curPast.startsWith('Input Source: [')) {
+                            paragraphSourcePrefix = curPast;
+                        }
+                    } else {
+                        paragraphTransPrefix = '';
+                        paragraphSourcePrefix = '';
+                    }
+
+                    if (!targetText) {
+                        activeLine.classList.add('streaming');
                     }
                     // 仅当处于历史单文本兼容流 (无 target/source 仅有 genericText) 时流转槽位；
                     if (!targetText && !sourceText && genericText) {
@@ -1136,7 +1588,7 @@
                 const hasNewContent = Boolean(sourceText || targetText || genericText);
                 if ((needsHistoryAnchor || (isNewSentence && hasNewContent)) && !sentenceHasTranslation && hasNewContent) {
                     const candidateText = pendingFinalizedText || (activeLine.textContent ? activeLine.textContent.trim() : '');
-                    if (candidateText && !candidateText.startsWith('等待') && !candidateText.startsWith('已切换') && !candidateText.startsWith('正在连接') && !candidateText.startsWith('已断开')) {
+                    if (candidateText && !isSystemHint(candidateText)) {
                         if (historyLine) {
                             historyLine.textContent = candidateText;
                             historyLine.style.display = 'block';
@@ -1146,44 +1598,54 @@
                     needsHistoryAnchor = false;
                 }
 
-                if (sourceText && !targetText && !sentenceHasTranslation) {
-                    activeLine.textContent = '';
-                    activeLine.classList.add('streaming');
-                }
-
                 // 1. 更新主字体（翻译文本）
                 if (primaryTrans) {
-                    activeLine.textContent = primaryTrans;
-                    activeLine.classList.add('streaming');
-                    sentenceHasTranslation = true;
+                    const fullTrans = paragraphTransPrefix ? joinClause(paragraphTransPrefix, primaryTrans, (activeChannel === 'en')) : primaryTrans;
+                    if (paragraphTransPrefix) {
+                        if (activeLine.textContent !== fullTrans) activeLine.textContent = fullTrans;
+                    } else {
+                        if (activeLine.textContent !== primaryTrans) activeLine.textContent = primaryTrans;
+                    }
+                    if (!sentenceHasTranslation) {
+                        activeLine.classList.add('streaming');
+                        sentenceHasTranslation = true;
+                    }
                 }
 
                 // 2. 更新下行次字体（输入原文 - 保证完整显示，0 沉默、0 吞没）
                 if (secondarySource) {
                     currentSentenceSource = secondarySource;
-                    pastLine.textContent = secondarySource;
+                    const fullSource = paragraphSourcePrefix ? joinClause(paragraphSourcePrefix, secondarySource, (activeChannel === 'zh')) : secondarySource;
+                    if (paragraphSourcePrefix) {
+                        if (pastLine.textContent !== fullSource) pastLine.textContent = fullSource;
+                    } else {
+                        if (pastLine.textContent !== secondarySource) pastLine.textContent = secondarySource;
+                    }
                 } else if (currentSentenceSource) {
-                    pastLine.textContent = currentSentenceSource;
+                    if (pastLine.textContent !== currentSentenceSource) {
+                        pastLine.textContent = currentSentenceSource;
+                    }
                 } else if (targetText && !secondarySource && (pastLine.textContent.startsWith('输入原文: [') || pastLine.textContent.startsWith('Input Source: ['))) {
                     pastLine.textContent = '';
                 }
 
                 // 句子定稿完成
                 if (isSentenceEnd) {
-                    const finalizedTrans = primaryTrans || activeLine.textContent;
                     if (targetText || sourceText) {
                         // 腾讯会议双语对照模式：保持主字体为最终译文，下行次字体为完整输入原文
-                        if (finalizedTrans && finalizedTrans !== '等待语音输入...' && !finalizedTrans.startsWith('等待')) {
-                            activeLine.textContent = finalizedTrans;
+                        if (!primaryTrans) {
+                            const finalizedTrans = activeLine.textContent;
+                            if (finalizedTrans && finalizedTrans !== '等待语音输入...' && !finalizedTrans.startsWith('等待') && !finalizedTrans.startsWith('Waiting')) {
+                                activeLine.textContent = paragraphTransPrefix ? joinClause(paragraphTransPrefix, finalizedTrans, (activeChannel === 'en')) : finalizedTrans;
+                            }
                         }
-                        if (secondarySource) {
-                            pastLine.textContent = secondarySource;
-                        } else if (currentSentenceSource) {
-                            pastLine.textContent = currentSentenceSource;
+                        if (!secondarySource && currentSentenceSource) {
+                            pastLine.textContent = paragraphSourcePrefix ? joinClause(paragraphSourcePrefix, currentSentenceSource, (activeChannel === 'zh')) : currentSentenceSource;
                         }
                     } else {
                         // 历史单文本测试兜底：译文流转入 pastLine
-                        if (finalizedTrans && finalizedTrans !== '等待语音输入...') {
+                        const finalizedTrans = primaryTrans || activeLine.textContent;
+                        if (finalizedTrans && finalizedTrans !== '等待语音输入...' && !finalizedTrans.startsWith('等待') && !finalizedTrans.startsWith('Waiting')) {
                             pastLine.textContent = finalizedTrans;
                         }
                         activeLine.textContent = '';
@@ -1193,10 +1655,12 @@
 
                 // 计费消耗更新
                 if (chipCost) {
-                    if (data.usage && typeof data.usage.cost_rmb === 'number') {
-                        chipCost.textContent = '¥' + data.usage.cost_rmb.toFixed(3);
-                    } else if (typeof data.cost === 'number') {
-                        chipCost.textContent = '¥' + data.cost.toFixed(3);
+                    const costVal = (data.usage && typeof data.usage.cost_rmb === 'number') ? data.usage.cost_rmb : ((typeof data.cost === 'number') ? data.cost : null);
+                    if (costVal !== null) {
+                        const costStr = '¥' + costVal.toFixed(3);
+                        if (chipCost.textContent !== costStr) {
+                            chipCost.textContent = costStr;
+                        }
                     }
                 }
 
@@ -1216,9 +1680,9 @@
                     if (zonePrimary) resizeObs.observe(zonePrimary);
                     if (zoneAuxiliary) resizeObs.observe(zoneAuxiliary);
                 } catch(e) {}
-            } else {
-                window.addEventListener('resize', () => updateScrollOffset(false), { passive: true });
             }
+            // 无论是否支持 ResizeObserver，均显式监听 window.resize，确保窗口尺寸拉伸时行长与滚动实时自适应
+            window.addEventListener('resize', () => updateScrollOffset(false), { passive: true });
 
             // 10. 本地 WebSocket 连接与指数退避重连
             function scheduleReconnect() {
@@ -1266,6 +1730,10 @@
                         activeLine.classList.remove('streaming');
                     }
                     updateScrollOffset(false);
+                    fetch(`${apiBase}/api/meta`).then(r => r.ok ? r.json() : null).then(meta => {
+                        const st = meta && meta.engine_status && meta.engine_status[currentChannel] && meta.engine_status[currentChannel].state;
+                        if (st) applyEngineStatus(st);
+                    }).catch(() => {});
                 };
 
                 ws.onmessage = (event) => {
@@ -1282,6 +1750,7 @@
                             }
                             return;
                         }
+                        if (data.type === 'engine_status') { applyEngineStatus(data.state); return; }
                         scheduleSubtitleUpdate(data);
                     } catch (err) {
                         console.error('[HUD WS] 消息解析错误:', err);
@@ -1378,16 +1847,16 @@
                     if (dragAnchorCorner) {
                         dragAnchorCorner.classList.add('pywebview-drag-region', 'drag-handle');
                         dragAnchorCorner.classList.remove('locked');
-                        dragAnchorCorner.style.setProperty('-webkit-app-region', 'drag');
-                        dragAnchorCorner.style.setProperty('cursor', 'grab');
+                        dragAnchorCorner.style.removeProperty('-webkit-app-region');
+                        dragAnchorCorner.style.removeProperty('cursor');
                         dragAnchorCorner.title = '按住左上角把手可拖拽移动窗口至任意屏幕';
                     }
                     if (hudContainer) {
                         hudContainer.classList.remove('position-locked');
                     }
                     document.querySelectorAll('.pywebview-drag-region, .drag-handle').forEach(el => {
-                        el.style.setProperty('-webkit-app-region', 'drag');
-                        el.style.setProperty('cursor', 'grab');
+                        el.style.removeProperty('-webkit-app-region');
+                        el.style.removeProperty('cursor');
                     });
                 }
 
@@ -1426,14 +1895,14 @@
             window.addEventListener('mousedown', function(e) {
                 if (!isLocked) return;
                 const targetEl = (e.target && e.target.nodeType === 1) ? e.target : (e.target ? e.target.parentElement : null);
-                const isControl = targetEl && typeof targetEl.closest === 'function' ? targetEl.closest('#btn-lock, #hud-channel-pill, #hud-theme-pill, #btn-opacity, #btn-config, button, select, input, .no-drag') : null;
+                const isControl = targetEl && typeof targetEl.closest === 'function' ? targetEl.closest('#btn-lock, #hud-channel-pill, #hud-theme-pill, #hud-fontsize-pill, #btn-opacity, #btn-config, button, select, input, .no-drag') : null;
                 if (!isControl) {
                     e.stopImmediatePropagation();
                     e.preventDefault();
                 }
             }, true);
 
-            // 监听键盘全局快捷键 (Cmd+Shift+L / Ctrl+Shift+L 解锁，Cmd+Shift+T / Ctrl+Shift+T 切换语种，Cmd+Shift+C / Ctrl+Shift+C 切换配色，Cmd+Shift+R / Ctrl+Shift+R 切换比率)
+            // 监听键盘全局快捷键 (Cmd+Shift+L / Ctrl+Shift+L 解锁，Cmd+Shift+T / Ctrl+Shift+T 切换语种，Cmd+Shift+C / Ctrl+Shift+C 切换配色，Cmd+Shift+F / Ctrl+Shift+F 切换字号，Cmd+Shift+R / Ctrl+Shift+R 切换比率)
             window.addEventListener('keydown', (e) => {
                 resetInactivity();
                 if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'L' || e.key === 'l' || e.code === 'KeyL')) {
@@ -1445,6 +1914,9 @@
                 } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'C' || e.key === 'c' || e.code === 'KeyC')) {
                     e.preventDefault();
                     cycleTheme();
+                } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && ((e.key === 'F' || e.key === 'f') || e.code === 'KeyF')) {
+                    e.preventDefault();
+                    cycleFontTier();
                 } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && ((e.key === 'R' || e.key === 'r') || e.code === 'KeyR')) {
                     e.preventDefault();
                     toggleRatio();
@@ -1630,6 +2102,11 @@
                 scheduleSubtitleUpdate: scheduleSubtitleUpdate,
                 updateScrollOffset: updateScrollOffset,
                 applyFontSize: applyFontSize,
+                getFontTiers: () => fontTiers,
+                getFontTier: () => fontTiers[fontTierIdx],
+                getFontTierIndex: () => fontTierIdx,
+                applyFontTier: applyFontTier,
+                cycleFontTier: cycleFontTier,
                 connectWs: connectWs,
                 openBrowserConfig: openBrowserConfig,
                 getChannel: () => currentChannel,
@@ -1654,11 +2131,17 @@
                 setRatio: applyRatio,
                 applyRatio: applyRatio,
                 toggleRatio: toggleRatio,
-                setLockState: toggleLock
+                setLockState: toggleLock,
+                revealHeader: revealHeaderControls,
+                concealHeader: concealHeaderControls,
+                getHeader: () => hudHeader,
+                getTopSensor: () => topSensor
             };
             window.scheduleSubtitleUpdate = scheduleSubtitleUpdate;
             window.renderSubtitleFrame = renderSubtitleFrame;
             window.resetInactivity = resetInactivity;
+            window.applyFontTier = applyFontTier;
+            window.cycleFontTier = cycleFontTier;
             window.applyRatio = applyRatio;
             window.toggleRatio = toggleRatio;
             window.setLockState = toggleLock;

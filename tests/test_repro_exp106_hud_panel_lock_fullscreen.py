@@ -8,8 +8,13 @@
 - 修复前预期: 真实 Cocoa 运行时抛出 AssertionError / AttributeError，退出码 != 0 (稳定红灯)
 - 修复后预期: 100% 真实 Objective-C 对象断言通过，退出码 == 0 (绿灯)
 """
+import os
 import sys
 import unittest
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 # 严禁使用 unittest.mock.MagicMock 伪造 macOS Cocoa 对象
 if sys.platform != "darwin":
