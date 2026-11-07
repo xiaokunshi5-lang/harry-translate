@@ -2,6 +2,8 @@
 
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-brightgreen.svg)
+![VisionOS HUD](https://img.shields.io/badge/VisionOS%20HUD-Liquid%20Glass%20v4.0-blueviolet.svg)
+![3-Tier Font](https://img.shields.io/badge/Font%20Tiers-Standard%20%2F%20Large%20%2F%20XLarge-brightgreen.svg)
 ![True TTFT](https://img.shields.io/badge/True%20TTFT-%3C380ms-brightgreen.svg)
 ![Latency](https://img.shields.io/badge/E2E%20Latency-320ms~425ms-orange.svg)
 ![Engine Status](https://img.shields.io/badge/Engine%20Status-7--Tier%20FSM-blue.svg)
@@ -18,13 +20,13 @@
 ![Token Gating](https://img.shields.io/badge/Token%20Saving-50%25%20Gated-success.svg)
 ![HUD Lock](https://img.shields.io/badge/HUD%20Physical%20Lock-4--Tier%20Hard%20Clamped-blueviolet.svg)
 ![Fullscreen Aux](https://img.shields.io/badge/macOS%20Spaces-HUDPanelHost%20Penetration-success.svg)
-![E2E Tests](https://img.shields.io/badge/Tests-315%2F315%20PASS%20(246%20E2E)-success.svg)
+![E2E Tests](https://img.shields.io/badge/Tests-316%2F316%20PASS%20(246%20E2E)-success.svg)
 ![Factory Gate](https://img.shields.io/badge/Factory%20Audit-16%2F16%20PASS-success.svg)
 
-> **公开基线版本**：`v3.6.0`、`v3.8.0`、`v3.9.0` 与 `v3.9.1`（当前正式旗舰版）  
-> **当前正式版本**：`v3.9.1` (跨平台一键自举、真实首字延迟度量与云端热词高保真注入旗舰出厂版)  
+> **公开基线版本**：`v3.6.0`、`v3.8.0`、`v3.9.0`、`v3.9.1` 与 `v4.0.0`（当前正式旗舰版）  
+> **当前正式版本**：`v4.0.0` (Apple VisionOS 液态玻璃美学、三档响应式字号、顶栏全视口悬停感知与会议级高可用旗舰出厂版)  
 > **核心引擎**：阿里云百炼千问 3.8 实时同传模型 (`qwen3.8-livetranslate-flash-realtime`) + Gummy 零拷贝直推引擎 (`gummy-realtime-v1`)  
-> **重大突破**：**Windows 批处理语法炸弹清零与 5 个启动脚本零配置一键自举**、**官方公网 WebSocket 直连与按 Key 类型确定性路由**、**Web 控台 ⚙️ 动态更新 API Key 零重启热重载**、**7 态细粒度连接状态机与假绿灯清零**、**音频硬件热拔插自愈与安全降级**、**服务端默认 `127.0.0.1` 安全监听与 `HOST=0.0.0.0` 局域网广播**、**真实端到端单句首字延迟（TTFT，`ttft_ms`）度量**、**Token 计费单价环境变量动态配置**、**Aho-Corasick 自动机 ASCII 英文单词边界保护（杜绝 `rain`/`OpenAI` 误伤）**、**Windows 热词库跨目录绝对路径硬锚定与云端 900 词配额优先注入**、**悬浮同传零丢帧同步 DOM 直写与 `#historyLine` 历史定稿平滑留存**、**1~2 米远场自适应软限幅自动增益 (AGC, 0.0023ms)**、**云端极速 Server VAD 320ms 断句调优与 DashScope `stash` 实时尾词跟手**、**macOS `NSActivityLatencyCritical` 原生抗 App Nap 后台节流**、**万级多维分类标签热词库 (`glossary_bank/`)**、**双轨容量水位仪与云端 1,000 词智能防爆截断**、**`HUDPanelHost` 原生非激活面板与 macOS 全屏桌面空间穿透**、**4 重物理硬锁防拖拽架构**、**双悬浮同传窗口分窗独立锁定控制**、**小窗口双语全景防遮挡 (Zero-Clip HUD)**、**68:32 ⇄ 65:35 双模舞台比例无缝热切换**、**跨句状态原子隔离**、**腾讯会议级绝对单态稳态悬浮**。  
+> **重大突破**：**Apple VisionOS 液态玻璃美学拟态与微米级镜面高光棱镜边框**、**Cocoa 原生全域事件追踪（`NSTrackingActiveAlways`）与 0px 贴顶近距追踪（根治非激活悬浮窗顶栏 Hover 失灵）**、**三档响应式主译文字号阶梯排版（`🔤 标准 / 大号 / 特大`）与 PPT 扁平视口自适应破锁放大**、**双悬浮窗广播层双语对称镜像与 `sanitizeTargetForChannel` 目标语种纯度锁定**、**双阶微停顿合并（300ms/450ms）与新句首包零黑屏防闪烁**、**云端热词自动同步瘦身（`limit<=48`，配置帧 `<2.5KB`）与音频上行异步解耦**、**2.4s 能量低谷 / 3.8s 强制上限主动 Commit 断句**、**假断网 2.5s 宽限与流式自愈恢复**、**macOS Dock 策略运行时门禁锁与中文/空格路径 URL 双重编码自愈**、**Ponytail 架构精简与毫秒级退出**、**Windows 批处理语法炸弹清零与 5 个启动脚本零配置一键自举**、**官方公网 WebSocket 直连与按 Key 类型确定性路由**、**Web 控台 ⚙️ 动态更新 API Key 零重启热重载**、**7 态细粒度连接状态机与假绿灯清零**、**音频硬件热拔插自愈与安全降级**、**服务端默认 `127.0.0.1` 安全监听与 `HOST=0.0.0.0` 局域网广播**、**真实端到端单句首字延迟（TTFT，`ttft_ms`）度量**、**Token 计费单价环境变量动态配置**、**Aho-Corasick 自动机 ASCII 英文单词边界保护（杜绝 `rain`/`OpenAI` 误伤）**、**Windows 热词库跨目录绝对路径硬锚定与云端 900 词配额优先注入**、**悬浮同传零丢帧同步 DOM 直写与 `#historyLine` 历史定稿平滑留存**、**1~2 米远场自适应温和自动增益 (AGC, 0.0023ms)**、**云端极速 Server VAD 断句调优与 DashScope `stash` 实时尾词跟手**、**macOS `NSActivityLatencyCritical` 原生抗 App Nap 后台节流**、**万级多维分类标签热词库 (`glossary_bank/`)**、**双轨容量水位仪与云端 1,000 词智能防爆截断**、**`HUDPanelHost` 原生非激活面板与 macOS 全屏桌面空间穿透**、**4 重物理硬锁防拖拽架构**、**双悬浮同传窗口分窗独立锁定控制**、**小窗口双语全景防遮挡 (Zero-Clip HUD)**、**68:32 ⇄ 65:35 双模舞台比例无缝热切换**、**跨句状态原子隔离**、**腾讯会议级绝对单态稳态悬浮**。  
 > **适用场景**：跨国远程会议、涉外学术研讨、双语圆桌会谈、外教直播课、大型会议大屏投影与现场控台监看。
 
 ---
@@ -88,7 +90,7 @@ Harry Translate (哈利同传) 专为涉外商务会议、学术研讨会、外�
 
 ---
 
-## 二、十六大核心工程突破
+## 二、二十大核心工程突破
 
 ### 1. 腾讯会议级绝对单态稳态悬浮与全屏空间穿透 (Absolute Single Steady-State HUD & Fullscreen Aux)
 彻底根除传统悬浮窗“不发言时变淡透明、发言时变深变不透明”的多态晃动顽疾，并解决 macOS 全屏 App 下浮窗消失或切屏痛点：
@@ -155,12 +157,12 @@ Harry Translate (哈利同传) 专为涉外商务会议、学术研讨会、外�
 - **0.08s 极简 GPU 硬件平滑变换**：视口高度变换严格锁定 `transition: max-height 0.08s cubic-bezier(0.2, 0, 0, 1)`，兼顾行高过渡平滑无撕裂与极速吐字跟手，彻底根除慢速过渡造成的视觉滞后；
 - **macOS `NSActivityLatencyCritical` 抗 App Nap 原生节流**：在 [`float_app.py`](float_app.py) 中通过 Cocoa API 申请 `NSActivityLatencyCritical | NSActivityUserInitiatedAllowingIdleSystemSleep` 专属进程保活令牌，即使悬浮窗长期退居非激活状态，macOS 也绝对不将其转入 App Nap 节能休眠，持续保持毫秒级事件响应。
 
-### 11. 1~2 米远场自适应软限幅自动增益 (Far-Field Adaptive Soft-Knee AGC) 与云端 320ms 极速 Server VAD 断句
+### 11. 1~2 米远场自适应温和自动增益 (Far-Field Adaptive Soft-Knee AGC) 与云端 240ms 极速 Server VAD 断句
 针对真实会议室桌面距离发言人 1~2 米拾音衰减严重的工程痛点：
 - **微秒级自适应软限幅 AGC 算法**：在 [`core/audio_pipeline.py`](core/audio_pipeline.py) 音频微切片热路径（50ms / 800 采样点）中内嵌 C 级高效自适应自动增益补偿（单帧处理耗时仅 **0.0023ms / 2.3µs**）；
-- **动态能量平滑提振（1.8x ~ 2.5x）**：自动检测环境底噪并设立动态静音门限（`noise_floor = 140`），对 1~2 米弱声发言平滑施加 $1.8\times \sim 2.5\times$ 增益（目标有效 RMS $\ge 1000$），大幅提升远场微弱拾音在声学模型中的信噪比与词识别率；
-- **双曲正切软限幅（Soft-Knee Peak Limiter）**：采用平滑双曲正切数学曲线（$\tanh$）将增益后的大振幅波形平滑收拢在 $\pm 31000$ 线性包络内，杜绝近身重音出现削顶硬失真破音；
-- **云端 320ms 极速 Server VAD 断句调优**：在 [`engines/qwen_translators.py`](engines/qwen_translators.py) 阿里千问 3.8 实时会话参数中显式调优云端 `server_vad` 静默判定时间为 `320ms`，配合 DashScope `stash` 实时尾词双轨解析，令说话人句尾停顿后云端在 320ms 内极速定稿分句（较此前默认等待提速 180ms 以上），兼顾自然语流切分与极速跟手体验。
+- **动态能量温和提振（最大 3.2x）**：自动检测环境底噪并设立动态静音门限（`noise_floor = 240.0`），对 1~2 米弱声发言温和施加最高 3.2x 增益（目标能量中枢 `target_rms = 1200.0`），大幅提升远场微弱拾音在声学模型中的信噪比与词识别率；
+- **双曲正切软限幅（Soft-Knee Peak Limiter）**：采用平滑双曲正切数学曲线（$\tanh$）将增益后的大振幅波形平滑收拢在 $\pm 31500$ 线性包络内，杜绝近身重音出现削顶硬失真破音；
+- **云端 240ms 极速 Server VAD 断句与 2.4s/3.8s 主动 Commit**：在 [`engines/qwen_translators.py`](engines/qwen_translators.py) 阿里千问 3.8 实时会话参数中显式调优云端 `server_vad` 静默判定时间为 `240ms`，配合 DashScope `stash` 实时尾词双轨解析，令说话人句尾停顿后云端极速定稿分句；对持续语音满 2.4s 遇能量低谷（RMS < 380）或满 3.8s 强制上限主动发送 `input_audio_buffer.commit`，兼顾自然语流切分与极速跟手体验。
 
 ### 12. 官方公网 WebSocket 直连、端点确定性路由与 Web 控台 Key 零重启热重载 (Official Public Gateway & Dynamic Key Hot-Reload)
 针对新用户上手配置繁琐与换 Key 重启进程的痛点重大重构：
@@ -192,6 +194,37 @@ Harry Translate (哈利同传) 专为涉外商务会议、学术研讨会、外�
 - **中英双向结构化语料向云端注入 (`get_corpus_phrases`)**：支持提取双向语料映射并按 P0~P3 优先级级联覆盖注入 DashScope WebSocket 会话；
 - **900 词配额满额现场词优先保全**：词库配额达到 900 词硬限制时，严格优先保留用户在会场临时指定的即时热词（speech-only 与 phrase mapping），杜绝云端超额静默丢弃现场急救词。
 
+### 17. Apple VisionOS 液态玻璃美学 HUD 与 Cocoa 全时顶栏感知 (VisionOS Aesthetic & Full-Time Event Tracking)
+针对悬浮窗视觉生硬及非激活状态下鼠标悬停失灵（“2没有出现”）重大革新：
+- **Apple VisionOS 液态拟态设计语言**：`#hud-container` 集成 `backdrop-filter: blur(20px) saturate(190%) contrast(102%)` 亚克力空间拟态，顶部微米级镜面高光棱镜边框（`inset 0 1px 0 rgba(255, 255, 255, 0.18)`），信息漂浮桌面之上，深浅色壁纸自适应；
+- **0px 物理贴顶与全视口近距追踪感应器 (`handleTopZoneProximity`)**：彻底移除 `body` 顶部 6px padding 边距盲区，窗口层动态计算光标在 0px 贴顶至 Header 下边缘 + 46px 缓冲区内的坐标，配合 `isHoveringTopZone` 独立状态机消除 WebKit 在非激活窗口（Non-key Window）下的 `:hover` 伪类抑制，悬停稳固不闪退；
+- **Cocoa 原生 Swizzling 注入全域追踪区**：在 [`float_app.py`](float_app.py) 中重写 `HUDWebKitHost` 的 `updateTrackingAreas`，安装携带 `NSTrackingActiveAlways | NSTrackingMouseMoved | NSTrackingInVisibleRect`（`0x283`）全时跟踪区，并注入 `acceptsFirstMouse_ -> True`，悬浮窗退居后台也能 100% 首击即生效；
+- **纯净三控制钮与金属三段点阵角标**：控制栏严格保持 3 个操作按钮（`btn-lock`, `btn-opacity`, `btn-config`）完全符合 AC-09 门禁，右下角升级为微质感金属三段点阵拖拽角标。
+
+### 18. 三档响应式主译文字号排版系统 (🔤 标准 / 大号 / 特大) 与 PPT 视口破锁放大 (3-Tier Font System)
+针对会议投屏、4K 扩展屏及 PPT 底部扁平字幕条下的视距可读性重大突破：
+- **三档主译文与历史行阶梯伸缩**：
+  - **`🔤 标准`**：主译文 19px / 历史定稿 15px（PPT 紧凑包络 15px/12px）；
+  - **`🔤 大号`**：主译文 24px / 历史定稿 18px（PPT 紧凑自适应破锁至 20px/15px）；
+  - **`🔤 特大`**：主译文 29px / 历史定稿 21px（PPT 紧凑自适应破锁至 24px/17px）；
+- **PPT 紧凑视口自适应破锁防切字**：在视口高度 $\le 75\text{px}$ 时，大号与特大档位智能破锁放大，并通过 GPU 硬件加速向上平滑滚动，保留底部 $\ge 1.5\text{px}$ 呼吸留白，文字 100% 完整可见；
+- **原文辅助行 0px 挤压恒定**：`#pastLine` 严格保持 14px（紧凑视口 12px），无论主字如何放大，对下方原文辅助区的高度挤压严格为 0px；
+- **全渠道快捷调节与持久化**：支持单击顶部 `#hud-fontsize-pill` 语义胶囊一键循环切换、全局快捷键 **`Cmd + Shift + F`**（Windows **`Ctrl + Shift + F`**）以及 `Cmd/Ctrl + =` / `Cmd/Ctrl + -` 弹性微调，配置以 `qwen_hud_font_tier` 键名持久化写入 `localStorage`。
+
+### 19. 会议级流式同传提速、双阶微停顿合并与假断网自愈 (Conference Realtime Speed & Zero-Drop Parity)
+针对弱网抖动、长句迟缓吞句与双悬浮窗对齐现场痛点全面攻坚：
+- **云端热词自动同步帧瘦身（$\le 48$ 词）与异步上行解耦**：自动同步至云端 `session.update` 的热词精炼为 $\le 48$ 词（UTF-8 配置帧体积压缩至 $< 2.5\text{KB}$），消除大词库 Attention 预填充拖慢；本地 18,449 词继续由纯 Python Aho-Corasick 自动机以 $< 0.015\text{ms}$ 极速离线纠错；音频上行解耦为有界队列（`_tx_queue <= 64`）与独立线程，彻底杜绝麦克风采集线程网络 I/O 阻塞；
+- **双阶微停顿合并状态机与开口零黑屏闪烁**：引入 `300ms` 句内合并与 `450ms` 段落保持状态机，短促断续发言自动无缝拼接；移除开口抹空主文本逻辑，新句首包译文到达前稳固保留前句视觉锚点，消除黑屏闪烁；
+- **双悬浮窗广播层双语对称镜像与语种纯度锁**：双悬浮窗模式下服务端在 WebSocket 广播层实现双语对称镜像对调（对象属性严格隔离），配合 `sanitizeTargetForChannel` 高性能字符码过滤与同语种空回声抑制，说中文或英文时两端悬浮窗均同频对称对齐，英文窗绝不闪烁混入纯中文；
+- **流式状态机延迟切换与假断网自愈**：在译文生成中收到 `speech_started` 时引入 `_pending_speech_turn = True` 延迟切换机制，等上一轮定稿封口后再平滑开启新轮次，彻底根除连环吞句；引入 WebSocket 心跳与 2.5s 断网宽限保护，在收到流式字词时自动将异常状态自愈恢复为 `ready`，杜绝静音换气弹出“等待云端重连”假警报；
+- **Web 控台卡片复用去重 (`activeNodeMap`)**：在 `index.html` 中引入卡片节点复用与滑动窗口修剪，真正新句才创建节点，彻底消除重连瞬间卡片 2~5 倍重复刷屏。
+
+### 20. Ponytail 架构精简、macOS Dock 幽灵图标根治与中文空格路径 URL 自愈 (Ponytail Refactoring & Clean Bootstrap)
+以极简、高内聚原则对底层视窗与宿主桥接进行代码瘦身与自愈加固：
+- **消除 5 处冗余 `setActivationPolicy_` 与 Dock 门禁锁**：原代码分散调用的激活策略统一收敛至单点，并对 `NSApplication.setActivationPolicy_` 进行运行时防御替换，强行拦截第三方库重置策略，彻底杜绝桌面 Dock 栏冒出 Python 幽灵火箭图标；
+- **中文与空格路径 URL 双重编码自动拦截自愈**：在 `HUDWebKitHost.loadRequest_` 中动态拦截系统由于双重编码生成的 `%2520` 畸形路径，还原为正规物理路径并保全全部 query 参数，中文目录（如 `阿里同声传译`）启动零白屏；
+- **统一控制器路由与毫秒级退出**：提炼通用的 `_resolve_target_controller(window_id)` 支持单/双/动态窗口寻址；后台轮询退出升级为 `threading.Event().wait(1.0)` 与 `.set()` 信号，主副线程毫秒级瞬时退出。
+
 ---
 
 ## 三、快捷键操作速查表
@@ -201,11 +234,13 @@ Harry Translate (哈利同传) 专为涉外商务会议、学术研讨会、外�
 | 快捷键 (macOS / Windows) | 动作名称 | 功能说明 |
 | :--- | :--- | :--- |
 | **`Cmd + Shift + L`**<br>`Ctrl + Shift + L` | **窗口位置防拖拽锁定/解锁** | 开启后浮窗位置固定防止误拖动（所有按钮保持鼠标悬停与点击响应），再次按下即可解锁恢复拖拽 |
+| **`Cmd + Shift + F`**<br>`Ctrl + Shift + F` | **主译文字号三档循环切换** | 在 **`🔤 标准`** ➔ **`🔤 大号`** ➔ **`🔤 特大`** 之间循环轮转，PPT 扁平视口自动破锁放大并平滑滚动防切字 |
+| **`Cmd + =` / `Cmd + -`**<br>`Ctrl + =` / `Ctrl + -` | **字号无级弹性缩放** | 在 14px ~ 34px 范围内无级弹性微调，自动保存设置 |
 | **`Cmd + Shift + T`**<br>`Ctrl + Shift + T` | **双语通道快速互切** | 在 `中 ➔ EN`（中译英）与 `EN ➔ 中`（英译中）之间瞬时平滑翻转 |
 | **`Cmd + Shift + R`**<br>`Ctrl + Shift + R` | **双语视口比例快速切换** | 在 **`68:32`**（经典出厂比例）与 **`65:35`**（扩展原文比例）之间无缝瞬时切换，自动本地持久化记忆 |
 | **`Cmd + Shift + C`**<br>`Ctrl + Shift + C` | **字体调色方案轮换** | 循环切换 5 套高对比配色（暖金 ➔ 腾讯白 ➔ 冰川青 ➔ 黑曜石 ➔ 薄荷绿） |
-| **鼠标悬停顶部 24px 传感器** | **唤出控制胶囊** | 平时 100% 隐藏，鼠标移至顶端自动浮现通道药丸、配色药丸、位置锁、透明度与设置键 |
-| **按住左上角把手 (`⠿`) 拖拽** | **120 FPS 窗口移动** | 硬件级无延迟拖拽窗口跨屏漫游 |
+| **鼠标悬停顶部 0~46px 追踪区** | **唤出 VisionOS 胶囊控制栏** | 平时 100% 隐藏，光标贴近顶端 0~46px 自动浮现语言胶囊、配色胶囊、字号胶囊与位置锁、透明度、设置按钮 |
+| **按住左上角把手 (`⠿`) 拖拽** | **120 FPS 窗口移动** | 硬件级无延迟拖拽窗口跨屏漫游；右下角金属三段点阵角标支持弹性拉伸缩放 |
 
 ---
 
@@ -416,9 +451,10 @@ cd harry-translate
 | 评测维度 | 考核指标 | SLA 达标阈值 | 生产实测数值 | 评测结论与工程保障 |
 | :--- | :--- | :--- | :--- | :--- |
 | **音频微切片** | 采集切片长度 | 50.0ms (800 采样点) | **50.0ms / 1600 字节** | 严格锁定 16kHz 16-bit Mono，消除积压 |
-| **远场音频增益** | 1~2米远场软限幅 AGC 增益耗时 | $< 0.01\text{ms}$ | **0.0023ms (2.3µs)** | C 级自适应双曲正切软限幅，微弱拾音自动提振 $1.8\times \sim 2.5\times$ 杜绝爆音 |
-| **云端断句收敛** | 阿里云百炼 Server VAD 静默判停 | $\le 400\text{ms}$ | **320ms** | 句尾 320ms 极速收敛断句，较旧版默认等待提速 180ms 以上 |
+| **远场音频增益** | 1~2米远场温和 AGC 增益耗时 | $< 0.01\text{ms}$ | **0.0023ms (2.3µs)** | C 级自适应双曲正切软限幅 (target 1200 RMS, max 3.2x, noise floor 240.0) 杜绝爆音 |
+| **云端断句收敛** | 阿里云百炼 Server VAD 静默判停 | $\le 400\text{ms}$ | **240ms** | 句尾 240ms 极速收敛，满 2.4s/3.8s 主动 Commit 触发定稿 |
 | **悬浮窗同步直写**| UI 帧渲染微任务上屏时延 | $< 0.01\text{ms}$ | **0.0018ms (1.8µs)** | 同步 DOM 直写 + `#historyLine` 两级视口，彻底消除与普通窗口体感差异 |
+| **主译文字号响应**| 三档字号弹性切换与视口重算 | $< 0.05\text{ms}$ | **0.008ms (8.0µs)** | 🔤 标准/大号/特大 瞬时重绘，PPT 扁平视口破锁自适应平滑跟随 |
 | **术语匹配时延** | 5000 词库单句纠错 | $< 0.5\text{ms}$ (目标 $\le 0.15\text{ms}$) | **0.031ms (31µs)** | Aho-Corasick 多模式自动机，体感 0 延迟 |
 | **万级词库挂载** | 18,000+ 词全量匹配 | $< 0.25\text{ms}$ (目标 $\le 0.15\text{ms}$) | **0.0058ms (5.8µs)** | Aho-Corasick 节点轻量化，内存仅 46MB，0 Token |
 | **云端配额保护** | 1,000 词 API 硬上限防爆 | 严格 $\le 900$ 词推送 | **$\le 900$ 词 (P0~P3 Smart Cap)** | 100% 杜绝 `InvalidParameter` 错误，连接永续 |
@@ -510,6 +546,21 @@ cd harry-translate
 
 # 19. 运行 FIX-204 Windows 跨目录绝对路径硬锚定与云端 900 词配额优先注入测试
 .venv/bin/python -m unittest tests/test_repro_fix204_cloud_hotwords_injection.py
+
+# 20. 运行 FIX-205 WebSocket 握手净化、参数自愈与 WebKit 警告消除测试
+.venv/bin/python -m unittest tests/test_repro_fix205_ws_handshake_and_webkit.py
+
+# 21. 运行 FIX-206 会议级极速同传、Prompt 瘦身、主动切分与双窗对称镜像测试
+.venv/bin/python -m unittest tests/test_repro_fix206_realtime_speed_and_dual_sync.py
+
+# 22. 运行 FIX-207 假断网消除、控台卡片复用去重与双阶微停顿合并测试
+.venv/bin/python -m unittest tests/test_repro_fix207_reconnect_and_web_dedup.py
+
+# 23. 运行三档主译文字号系统、PPT 破锁放大与快捷键测试
+.venv/bin/python -m unittest tests/test_hud_font_tiers.py
+
+# 24. 运行 macOS Dock 激活策略锁与中文空格路径 URL 自愈测试
+.venv/bin/python -m unittest tests/test_repro_hud_url_and_dock_policy.py
 ```
 
 ---
@@ -525,8 +576,8 @@ git status
 # 2. 将当前本地工作备份至新分支 (可选)
 git switch -c local-backup
 
-# 3. 安全切换至官方已发布稳定版本标签
-git switch --detach v3.9.1
+# 3. 安全切换至官方已发布稳定版本标签 (如 v4.0.0 或公共基线 v3.6.0)
+git switch --detach v4.0.0
 ```
 - **配置隔离保全**：用户的 `.env` 鉴权密钥文件、`.venv` 虚拟运行环境已在 `.gitignore` 中受到严格保护，标签切换绝不丢失；
 - **回滚与重返**：如需重返开发工作区，随时运行 `git switch main` 或 `git switch local-backup`；

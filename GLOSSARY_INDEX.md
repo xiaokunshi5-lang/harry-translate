@@ -1,6 +1,6 @@
 # Harry Translate (哈利同传) 全景热词速查与专业语料库索引指南 (GLOSSARY_INDEX.md)
 
-![Version](https://img.shields.io/badge/Version-v3.8-blue.svg)
+![Version](https://img.shields.io/badge/Version-v4.0.0-blue.svg)
 ![Packs](https://img.shields.io/badge/Glossary%20Packs-15%20Standard%20Packs-brightgreen.svg)
 ![Total Terms](https://img.shields.io/badge/Total%20Terms-18%2C449%20Authentic-purple.svg)
 ![Priority](https://img.shields.io/badge/Override%20Hierarchy-4--Tier%20(P0%3EP1%3EP2%3EP3)-orange.svg)
@@ -77,11 +77,11 @@
 
 ---
 
-## 三、云端热词智能截断机制 (Cloud Hotwords Safe Capping)
+## 三、云端热词双轨容量管理与智能截断 (Cloud Hotwords Dual-Layer Safe Capping)
 
-阿里云百炼平台（DashScope）与通义千问实时同传引擎（`qwen3.8-livetranslate-flash-realtime`）通过 WebSocket 通道传输音频与文本，其 `session.update` 指令对热词列表（Hotwords）设有 **1,000 词硬性容量上限**。若请求数组长度超出 1,000 词，云端网关直接抛出 `InvalidParameter` 错误并主动掐断 WebSocket 连接。
+阿里云百炼平台（DashScope）与通义千问实时同传引擎（`qwen3.8-livetranslate-flash-realtime`）通过 WebSocket 通道传输音频与文本，其 `session.update` 指令对热词列表（Hotwords）设有 **1,000 词硬性容量上限**。若请求数组长度超出 1,000 词，云端网关直接抛出 `InvalidParameter` 错误并主动掐断 WebSocket 连接。此外，在流式音频传输过程中，单次通过 WebSocket 频繁发送巨大热词数组会导致音频上行队列排队阻塞。
 
-为了在支撑万级本地词库的同时确保云端会话绝对稳定，系统构建了智能截断闸门：
+为了在支撑万级本地词库的同时确保云端极速流式传输与连接绝对稳定，系统在 `v4.0.0` 构建了双轨热词分发体系：
 
 ```
 全部已激活词库 (最高可达 18,449+ 词)
@@ -89,18 +89,20 @@
          ▼
 按优先级排序去重: P0 (本场临时) ➔ P1 (永久常驻) ➔ P2 (高频主力) ➔ P3 (生僻专精)
          │
-         ├─────────────────────────────────────────┐
-         ▼                                         ▼
-[前 900 词安全推送]                        [超出 900 词截断部分]
-         │                                         │
-         ▼                                         ▼
-阿里云百炼 WebSocket 推送                  本地 Aho-Corasick 自动机
-(安全度 100%, 0 报错断线)                  (全量挂载, <0.15ms 零延迟补救)
+         ├─────────────────────────────────┬─────────────────────────────────┐
+         ▼                                 ▼                                 ▼
+[动态增量更新: ≤48 词]              [全库兜底上限: ≤900 词]           [超限截断部分: >900 词]
+         │                                 │                                 │
+         ▼                                 ▼                                 ▼
+流式音频上行帧零排队               握手建连防爆截断                  本地 Aho-Corasick 自动机
+(毫秒级下发, 0 阻塞)               (安全度 100%, 0 报错断线)         (全量挂载, <0.15ms 零延迟补救)
 ```
 
-1. **安全推送线设定（Safe Cap = 900）**：
-   系统严格将推向云端的热词上限锁定为 **900 词**，预留 100 词（10%）的动态缓冲安全冗余。
-2. **容量三态水位指示**：
+1. **会话级增量安全帧（Dynamic Frame Cap $\le 48$ 词）**：
+   在 WebSocket 运行时向服务端动态同步热词时，系统严格将单次 `session.update` 帧限制在 $\le 48$ 词之内，确保音频上行吞吐不受影响；
+2. **全库握手安全保护线（Safe Cap $\le 900$ 词）**：
+   首次建连或全量导出时，推向云端的热词上限严格锁定为 **900 词**，预留 100 词（10%）安全冗余，严密杜绝 1,000 词硬上限导致的 `InvalidParameter` 异常；
+3. **容量三态水位指示**：
    - 🟢 **`optimal` (优秀，$\le 750$ 词)**：云端热词负载轻松，声学模型高效响应；
    - 🟡 **`warning` (预警，$751 \sim 900$ 词)**：接近安全保护线，提示会务技术人员精简勾选；
    - 🔴 **`capped` (截断保护，$> 900$ 词)**：触发智能分流，前 900 词推送云端，超出部分自动由本地引擎 100% 承担。

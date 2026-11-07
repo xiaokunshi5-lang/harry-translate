@@ -64,17 +64,17 @@ Harry Translate v4.0.0 是自项目立项以来**最具颠覆性的一次悬浮�
    在 window 层建立全局 `mousemove` 监听器，动态计算鼠标相对于顶部 Header 的距离：
    ```javascript
    function handleTopZoneProximity(e) {
-       const header = document.getElementById('hud-header');
-       const rect = header.getBoundingClientRect();
-       // 只要鼠标在顶部 0px 至 Header 下边缘 + 46px 缓冲区内，即刻激活
-       const isInZone = (e.clientX >= 0 && e.clientX <= window.innerWidth &&
-                         e.clientY >= 0 && e.clientY <= (rect.top + 46));
-       if (isInZone) {
-           isHoveringTopZone = true;
-           header.classList.add('zone-active');
-       } else {
+       if (!hudContainer) return;
+       const rect = hudContainer.getBoundingClientRect();
+       // 覆盖窗口绝对顶层 (y=0) 至 Header 底部 (rect.top + 46px) 以及左右边界外扩 20px
+       const inZone = (e.clientY >= 0 && e.clientY <= (rect.top + 46)) &&
+                      (e.clientX >= (rect.left - 20) && e.clientX <= (rect.right + 20));
+
+       if (inZone) {
+           revealHeaderControls();
+       } else if (isHoveringTopZone && e.clientY > (rect.top + 50)) {
            isHoveringTopZone = false;
-           header.classList.remove('zone-active');
+           concealHeaderControls(180);
        }
    }
    ```
@@ -129,24 +129,28 @@ Harry Translate v4.0.0 是自项目立项以来**最具颠覆性的一次悬浮�
 
 ---
 
-### 2.3 视距与可读性定制：S / M / L 三档响应式字号体系
+### 2.3 视距与可读性定制：三档响应式主译文字号体系 (🔤 标准 / 🔤 大号 / 🔤 特大)
 
 #### 【痛点与场景】
-在会议演示、大屏投屏、笔记本便携屏及外接 4K 显示器等不同场景下，固定的字号无法兼顾“远看清晰”与“近看不挡屏幕”的双重需求。
+在会议演示、大屏投屏、笔记本便携屏以及 PPT 底部扁平字幕条等不同场景下，固定的字号无法兼顾“远看清晰”与“近看不挡屏幕”的双重需求。且若简单通篇放大字体，会导致辅助原文行挤压主译文或在小窗口中被下边缘切断。
 
 #### 【解决方案】
-构建了完备的 3 档响应式阶梯排版引擎：
+构建了完备的 3 档响应式阶梯排版引擎，主译文与历史行分级弹性放大，辅助原文行保持舒适恒定：
 
-| 档位 | 语义标识 | 原文字号 (`source-text`) | 译文字号 (`target-text`) | 历史定稿 (`#historyLine`) | 适用场景 |
-| :---: | :---: | :---: | :---: | :---: | :--- |
-| **S** | 小号 (Compact) | `15px` | `13px` | `11px` | 笔记本小屏、密集敲代码、轻量伴随 |
-| **M** | 中号 (Default) | `19px` | `16px` | `13px` | 标准办公、日常视频通话、双屏协作 |
-| **L** | 大号 (Spacious) | `24px` | `20px` | `15px` | 4K 高分屏、远距离观看、会议演示投屏 |
+| 档位 | 语义标签 (`<span>`) | 标准视口主译文 (`#activeLine`) | 标准视口历史行 (`#historyLine`) | PPT 紧凑视口主译文 (<=75px) | PPT 紧凑视口历史行 | 辅助原文 (`#pastLine`) | 适用场景 |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **0** | **🔤 标准** | `19px` | `15px` | `15px` (默认包络) | `12px` | `14px` (紧凑 `12px`) | 笔记本便携屏、日常办公伴随 |
+| **1** | **🔤 大号** | `24px` | `18px` | `20px` (自适应破锁) | `15px` | `14px` (紧凑 `12px`) | 27寸外接屏、跨国视频会议 |
+| **2** | **🔤 特大** | `29px` | `21px` | `24px` (自适应破锁) | `17px` | `14px` (紧凑 `12px`) | 4K 高分屏、大型学术会场投屏 |
+
+- **PPT 紧凑视口自适应破锁与防切字**：在视口高度 <=75px 时，默认处于 15px 紧凑包络；切换至“大号”或“特大”时，引擎智能破除紧凑锁放大至 20px / 24px，并通过 GPU 硬件加速自动平滑向上滚动，保留底部 >=1.5px 呼吸留白，100% 杜绝最新字下沿削顶；
+- **原文辅助行恒定防挤压**：`#pastLine` 严格保持 14px（紧凑视口 12px），主译文字号切换对下方原文区域的高度变动严格为 0px。
 
 #### 【交互方式】
-- **一键轮转**：鼠标单击顶部 `#hud-fontsize-pill` 胶囊，在 `S -> M -> L -> S` 之间循环切换，带有丝滑弹性缩放动效；
-- **键盘全局快捷键**：在悬浮窗内支持 `Cmd/Ctrl + =`（或 `+`）无级放大、`Cmd/Ctrl + -` 无级缩小；
-- **状态永久记忆**：通过 `localStorage.setItem('hud_font_tier', tier)` 实现跨次启动持久化记忆，重启软件无需重新设置。
+- **一键轮转**：鼠标单击顶部 `#hud-fontsize-pill` 语义化 `<span>` 胶囊，在 `🔤 标准 ➔ 🔤 大号 ➔ 🔤 特大 ➔ 🔤 标准` 之间循环轮转，带有丝滑弹性缩放动效；
+- **键盘全局快捷键**：在悬浮窗内支持 **`Cmd + Shift + F`**（Windows **`Ctrl + Shift + F`**）循环切换，同时兼容 `Cmd/Ctrl + =` 无级放大与 `Cmd/Ctrl + -` 无级缩小；
+- **位置锁定下可点击**：窗口处于 `🔒` 防拖拽锁定状态时，事件捕获层放行 `#hud-fontsize-pill`，锁位不锁控；
+- **状态永久记忆**：通过 `localStorage.setItem('qwen_hud_font_tier', tier.id)` 与 `'qwen_hud_font_size'` 实现跨次启动持久化记忆，重启软件无需重新调节。
 
 ---
 
@@ -154,42 +158,48 @@ Harry Translate v4.0.0 是自项目立项以来**最具颠覆性的一次悬浮�
 
 严格按照 Ponytail 架构精简准则，消除冗余、消除重复、提炼单一职责：
 
-1. **消除 5 处冗余的 `setActivationPolicy_` 调用**：
-   原代码在窗口初始化、单例保护、双窗口启动等 5 处分散调用 `NSApp.setActivationPolicy_(1)`。重构后将其统一收敛至应用启动入口单一调用点，避免破坏 macOS Dock 与菜单栏状态。
-2. **统一多窗口控制器路由 (`_resolve_target_controller`)**：
+1. **消除 5 处冗余的 `setActivationPolicy_` 调用与 Dock 策略运行时门禁**：
+   原代码在窗口初始化、单例保护、双窗口启动等 5 处分散调用 `NSApp.setActivationPolicy_(1)`。重构后将其统一收敛至应用启动入口单一调用点；同时对 `NSApplication.setActivationPolicy_` 实施运行时防御替换（Runtime Hook），拦截第三方库（如 pywebview）调用 `setActivationPolicy_(0)`，彻底杜绝 macOS Dock 栏突兀冒出 Python 幽灵图标。
+2. **中文与空格路径 URL 双重编码自动拦截与自愈**：
+   重构 `HUDWebKitHost.loadRequest_`，针对包含中文或空格的项目目录（如 `阿里同声传译`），自动拦截系统由于双重编码生成的 `%2520` 畸形路径，还原为正规物理路径并 100% 保全 `?host=...&port=...&channel=...` 查询参数，彻底避免悬浮窗白屏或加载失败。
+3. **统一多窗口控制器路由 (`_resolve_target_controller`)**：
    彻底重构了脆弱的单双窗口判断逻辑，提炼出通用的控制器路由函数：
    ```python
    def _resolve_target_controller(window_id: Optional[str] = None):
        """统一解析悬浮窗控制器：支持 single、dual 以及基于 window_id 的动态索引."""
        # 统一单/双窗口寻址，彻底消除 if hasattr(w1) ... elif hasattr(w2) 的硬编码重复分支
    ```
-3. **后台轮询退出改造为毫秒级 `threading.Event()`**：
+4. **后台轮询退出改造为毫秒级 `threading.Event()`**：
    原代码在后台线程中使用 `time.sleep(1)` 轮询窗口锁状态，导致用户关闭悬浮窗时主进程常有 1~2 秒的卡顿和延迟。重构后升级为 `threading.Event().wait(1.0)`，并在 `windowWillClose:` 回调中直接触发 `.set()`，实现主副线程**毫秒级退出响应**。
-4. **规范化 ctypes Cocoa Swizzling**：
+5. **规范化 ctypes Cocoa Swizzling**：
    为所有底层 Objective-C 运行时动态注入方法显式补充 `# ponytail:` 架构契约与类型标注，确保安全与可维护性。
 
 ---
 
 ### 2.5 会议级同传与假断网自愈闭环（FIX-205 ~ FIX-207 核心成果）
 
-1. **主控台与悬浮窗卡片双重防重复出字 (`normSrc` + 唯一 ID)**：
-   在 `index.html` 中重构卡片生命周期管理器，解决弱网或重连瞬间云端推送多帧导致的同音词/同句重复卡片上屏问题。
-2. **双悬浮窗纯净语种锁定与热词实时双向同步**：
-   修复了双悬浮窗模式下（中译英窗与英译中窗）通道混杂的问题，实现中/英双流独立绑定与热词库内存镜像实时双向热同步。
-3. **云端假断网检测与指数退避重连**：
-   在 `engines/qwen_translators.py` 中引入健康心跳看门狗，毫秒级识别阿里云网关假死状态并自动切换备用信道，杜绝无声断联。
-4. **远场 1~2m 自适应 AGC 增益**：
-   在 `core/audio_pipeline.py` 中将音频能量中枢调优至 1600.0 RMS 甜点区，最大增益达 6.5x，即使远离麦克风也能保证识别高召回率。
+1. **云端热词瘦身与异步音频上行解耦 (FIX-206 R1)**：
+   自动同步至云端 `session.update` 的热词精炼为 `limit <= 48` 对高优词条（UTF-8 配置帧体积压缩至 `< 2.5KB`），消除大词库 Attention 预填充拖慢；本地 18,449 词继续由纯 Python Aho-Corasick 自动机以 `< 0.015ms` 极速离线纠错；音频上行解耦为有界队列（`_tx_queue <= 64`）与独立线程，彻底杜绝麦克风采集线程网络 I/O 阻塞。
+2. **远场自适应温和 AGC 与主动 Commit 断句 (FIX-206 R2)**：
+   音频采集调优至温和黄金参数（`target_rms=1200.0, max_gain=3.2x, noise_floor=240.0, soft_knee=280.0`），云端 Server VAD 调优为 `240ms`；对持续语音满 2.4s 遇能量低谷（RMS < 380）或满 3.8s 强制上限主动发送 `input_audio_buffer.commit`，彻底解决长句停顿不换句痛点。
+3. **流式状态机延迟切换防吞句与假断网自愈 (FIX-206 R3 & FIX-207 R1)**：
+   在译文生成中收到 `speech_started` 时引入 `_pending_speech_turn = True` 延迟切换机制，等上一轮定稿封口后再平滑开启新轮次，彻底根除连环吞句；引入 WebSocket 心跳与 2.5s 断网宽限保护，在收到流式字词时自动将异常状态自愈恢复为 `ready`，杜绝静音换气弹出“等待云端重连”假警报。
+4. **双悬浮窗广播层双语对称镜像与纯度锁 (FIX-206 R4 & FIX-207 R3)**：
+   双悬浮窗模式下服务端在 WebSocket 广播层实现双语对称镜像对调（对象属性严格隔离），配合 `sanitizeTargetForChannel` 字符级纯度过滤与同语种空回声抑制，说中文或英文时两窗均同频对齐，外宾窗绝不闪烁混入纯中文。
+5. **双阶微停顿合并与开口零黑屏闪烁 (FIX-207 R4)**：
+   引入双阶微停顿状态机（`300ms` 句内合并 / `450ms` 段落保持），移除开口抹空主文本逻辑，新句首包到达前保留前句视觉锚点，消除黑屏闪烁。
+6. **Web 控台卡片复用去重 (`activeNodeMap`) (FIX-207 R2)**：
+   在 `index.html` 中引入卡片节点复用与滑动窗口修剪，真正新句才创建节点，彻底消除重连瞬间卡片 2~5 倍重复刷屏。
 
 ---
 
 ### 2.6 测试套件自闭环与独立可执行性加固
 
 1. **测试脚本独立可执行性修复**：
-   修复了 `test_repro_exp106_hud_panel_lock_fullscreen.py`、`test_repro_exp107_dual_hud_independent_lock.py`、`test_f04_hud_fallback.py`、`test_f16_launch_scripts.py` 等 4 个测试脚本缺失 `sys.path.insert(0, PROJECT_ROOT)` 与 `if __name__ == '__main__': unittest.main()` 的问题，使其既能通过 `run_e2e_tests.py` 批处理运行，也能单独直接执行。
+   修复了 `test_repro_exp106_hud_panel_lock_fullscreen.py`、`test_repro_exp107_dual_hud_independent_lock.py`、`test_f04_hud_fallback.py`、`test_f16_launch_scripts.py` 等测试脚本缺失 `sys.path.insert(0, PROJECT_ROOT)` 与 `if __name__ == '__main__': unittest.main()` 的问题，使其既能通过 `run_e2e_tests.py` 批处理运行，也能单独直接执行。
 2. **新增字号与 Dock 策略专项测试**：
-   - 新增 `tests/test_hud_font_tiers.py`：覆盖 S/M/L 三档字号计算、键盘快捷键逻辑及持久化存储（7/7 通过）；
-   - 新增 `tests/test_repro_hud_url_and_dock_policy.py`：覆盖 URL 解析与 Dock 图标不闪烁策略（6/6 通过）。
+   - 新增 `tests/test_hud_font_tiers.py`：覆盖三档字号计算、PPT 紧凑视口破锁放大、快捷键与持久化存储（7/7 通过）；
+   - 新增 `tests/test_repro_hud_url_and_dock_policy.py`：覆盖 URL 中文空格解析、loadRequest_ 自愈与 Dock 图标不闪烁策略（6/6 通过）。
 
 ---
 
@@ -197,15 +207,15 @@ Harry Translate v4.0.0 是自项目立项以来**最具颠覆性的一次悬浮�
 
 | 文件路径 | 变更类型 | 核心变更点 |
 | :--- | :---: | :--- |
-| `float_app.py` | 重构优化 | 消除 5 处冗余 `setActivationPolicy_`；统一 `_resolve_target_controller`；注入 `acceptsFirstMouse_` 与 `NSTrackingActiveAlways`；升级 `threading.Event()` 毫秒退出。 |
-| `float_ui.html` | 重大升级 | 引入 VisionOS 液态玻璃拟态；消除 0~5px 顶部物理死区；全视口 `handleTopZoneProximity` 追踪；三档响应式字号（S/M/L）；纯净 3 控钮设计；Emil Kowalski 弹簧物理缓动。 |
-| `server.py` | 稳定性 | 引入 `normSrc` 会议级去重、`is_cjk` 判断、7 态连接状态机、局域网安全端口绑定。 |
-| `core/audio_pipeline.py` | 算法调优 | 远场 1~2m 自适应 AGC 增益提升，软膝过渡与动态防爆音。 |
+| `float_app.py` | 重构优化 | 消除 5 处冗余 `setActivationPolicy_`，添加 Dock 激活策略锁与 `loadRequest_` URL 双重编码自愈；统一 `_resolve_target_controller`；注入 `acceptsFirstMouse_` 与 `NSTrackingActiveAlways`；升级 `threading.Event()` 毫秒退出。 |
+| `float_ui.html` | 重大升级 | 引入 VisionOS 液态玻璃拟态；消除 0~5px 顶部物理死区；全视口 `handleTopZoneProximity` 追踪；三档响应式字号（🔤 标准/大号/特大，快捷键 `Cmd/Ctrl+Shift+F`）；纯净 3 控钮设计；Emil Kowalski 弹簧物理缓动；双阶微停顿合并与开口零黑屏。 |
+| `server.py` | 稳定性 | 引入云端热词 `<=48` 瘦身同步；双悬浮窗广播层双语对称镜像；同语种空回声抑制；局域网安全端口绑定；7 态连接状态机。 |
+| `core/audio_pipeline.py` | 算法调优 | 远场自适应温和 AGC 调优（`target_rms=1200.0, max_gain=3.2x, noise_floor=240.0, soft_knee=280.0`），软膝过渡与动态防爆音。 |
 | `core/glossary_manager.py` | 容错加固 | 全量语料库热词回退机制，确保未勾选包在配额充足时作为兜底生效。 |
-| `engines/qwen_translators.py` | 容灾加固 | 会议级 WebSocket 假断网重连、双引擎解耦与端点智能路由。 |
-| `index.html` | 前端加固 | 句子生命周期 `normSrc` 去重，端到端真实首字延迟 (TTFT) 展示看板。 |
+| `engines/qwen_translators.py` | 容灾加固 | 异步音频发送线程；2.4s/3.8s 主动 commit；`_pending_speech_turn` 防吞句；假断网 2.5s 宽限与流式自愈；双引擎解耦。 |
+| `index.html` | 前端加固 | `activeNodeMap` 卡片节点复用去重，端到端真实首字延迟 (TTFT) 展示看板。 |
 | `tests/audit_gate.py` | 门禁验收 | 16 维工厂级全量验收门禁，涵盖延迟、内存、穿透、防截屏与多屏幕隔离。 |
-| `tests/test_hud_font_tiers.py` | 新增测试 | 3 档字号阶梯、快捷键与持久化存储自动化测试。 |
+| `tests/test_hud_font_tiers.py` | 新增测试 | 3 档字号阶梯、PPT 破锁放大、快捷键与持久化存储自动化测试。 |
 | `tests/test_repro_hud_url_and_dock_policy.py` | 新增测试 | Dock 激活策略与多窗口 URL 参数解析回归测试。 |
 
 ---

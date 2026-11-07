@@ -13,21 +13,28 @@ Versioning for public releases.
   - 三大语义化动态胶囊：`#hud-channel-pill`（呼吸发光通道指示）、`#hud-theme-pill`（明暗玻璃随心切）、`#hud-fontsize-pill`（字号档位指示）；
   - 引入 Emil Kowalski 弹性物理动效曲线 `cubic-bezier(0.16, 1, 0.3, 1)`，微交互手感紧凑灵动；
   - 金属质感三段式点阵拖拽角标，优化视觉抓握暗示，移除侵占事件的原生拖拽限制。
-- **S / M / L 三档响应式字号排版系统**：
-  - 小号（S: 15px/13px）、中号默认（M: 19px/16px）、大号（L: 24px/20px），兼顾便携笔记本与 4K 大屏视距；
-  - 支持单击胶囊循环切换、`Cmd/Ctrl + =` / `Cmd/Ctrl + -` 键盘快捷键微调，并通过 `localStorage` 实现永久跨次记忆。
+- **三档响应式主译文字号排版系统（🔤 标准 / 🔤 大号 / 🔤 特大）**：
+  - 标准视口下主译文与历史行弹性分级：`🔤 标准`（19px / 15px）、`🔤 大号`（24px / 18px）、`🔤 特大`（29px / 21px）；
+  - PPT 扁平紧凑视口（<=75px 高度）智能破锁放大：默认 15px/12px，大号自适应破锁至 20px/15px，特大破锁至 24px/17px，且最新吐字自动平滑滚动保留 >=1.5px 下沿呼吸区绝不切字；
+  - 辅助对照原文行（`#pastLine`）恒定保持 14px（紧凑视口 12px），无论主字如何放大均 0px 挤压原文；
+  - 交互支持点击 `#hud-fontsize-pill` 胶囊循环轮转、全局快捷键 **`Cmd + Shift + F`**（Windows **`Ctrl + Shift + F`**）及 `Cmd/Ctrl + =` / `Cmd/Ctrl + -` 弹性微调，并通过 `localStorage` 键名 `qwen_hud_font_tier` 永久记忆。
 - **Cocoa & WebKit 全时事件穿透与追踪（根治顶部 Hover 失灵）**：
   - 彻底移除 `body` 顶部 6px padding 边距死区，实现 0px 贴顶物理级即时捕获；
   - 新增全视口近距追踪感应器 `handleTopZoneProximity`，结合 `isHoveringTopZone` 独立状态机，消除 WebKit 在非激活窗口下的 `:hover` 伪类抑制；
   - AppKit 原生层注入 `acceptsFirstMouse_ -> YES` 与 `NSTrackingActiveAlways`（`0x80`）全时追踪区，确保后台悬浮状态下鼠标滑入即刻响应。
-- **Ponytail 架构精简与毫秒级退出**：
+- **Ponytail 架构精简、Dock 策略锁与路径自愈**：
   - 消除 5 处冗余的 `setActivationPolicy_` 调用，统一步伐；
+  - 锁定 `NSApplicationActivationPolicyAccessory (1)`，彻底拦截 pywebview 等第三方库重置常规激活策略导致的 macOS Dock 幽灵 Python 图标；
+  - `HUDWebKitHost.loadRequest_` 自动拦截并自愈含中文或空格路径的 `%2520` 双重编码异常，完好保留 query 参数；
   - 重构控制器寻址逻辑，提炼通用的 `_resolve_target_controller(window_id)` 支持单/双/动态窗口；
   - 升级后台线程退出机制为 `threading.Event().wait(1.0)` 与 `.set()` 信号，实现窗口销毁时毫秒级瞬时退出。
 - **会议级同传流式渲染与去重加固 (FIX-205 ~ FIX-207)**：
-  - 控台与悬浮窗基于 `normSrc` 与唯一 ID 双重去重，杜绝网络抖动重连时的卡片重复出字；
-  - 双悬浮窗中/英双流独立绑定与热词库实时双向同步；
-  - 云端假断网检测与指数退避重连。
+  - 云端热词自动同步帧瘦身至 `<= 48` 高优词（UTF-8 配置帧 `< 2.5KB`），本地 18,449 词全量由纯 Python Aho-Corasick 自动机以微秒级离线纠错；
+  - 远场温和自适应 AGC 黄金调优（`target_rms=1200.0, max_gain=3.2, noise_floor=240.0, soft_knee=280.0`），云端 VAD 判停优化至 240ms，辅以连续语音 2.4s 遇能量低谷（RMS < 380）或 3.8s 强制上限主动发送 `commit`；
+  - 音频上行解耦为有界无锁队列（`_tx_queue <= 64`）与独立工作线程，零阻塞声卡采集；
+  - 双阶微停顿合并状态机（`300ms` 意群合并 / `450ms` 段落保持），移除开口清空主字体逻辑，新句首包到达前保留前句视觉锚点，消除黑屏闪烁；
+  - 双悬浮窗广播层双语对称镜像（中译英广播至 `/ws/en` 同时对调镜像至 `/ws/zh`，对象属性严格隔离），配合 `sanitizeTargetForChannel` 高性能语种纯度锁与同语种空回声抑制；
+  - 网页控制台（`index.html`）引入 `activeNodeMap` 映射与 DOM 卡片节点复用机制，彻底根除网络重连多帧推送导致的重复刷屏。
 
 ## [3.9.1] - 2026-10-30
 
@@ -95,6 +102,7 @@ Versioning for public releases.
   generated test reports are excluded.
 - Security-sensitive dependencies are pinned at or above patched releases.
 
+[4.0.0]: https://github.com/xiaokunshi5-lang/harry-translate/releases/tag/v4.0.0
 [3.9.1]: https://github.com/xiaokunshi5-lang/harry-translate/releases/tag/v3.9.1
 [3.9.0]: https://github.com/xiaokunshi5-lang/harry-translate/releases/tag/v3.9.0
 [3.8.0]: https://github.com/xiaokunshi5-lang/harry-translate/releases/tag/v3.8.0
