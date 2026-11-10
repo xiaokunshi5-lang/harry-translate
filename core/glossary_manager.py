@@ -12,6 +12,7 @@ import json
 import os
 import threading
 import time
+from core.glossary_catalog import normalize_catalog
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 
@@ -170,6 +171,7 @@ class GlossaryManager:
     def __init__(self, dict_path: str = "glossary.json") -> None:
         self.dict_path: str = os.path.abspath(dict_path)
         self._lock: threading.Lock = threading.Lock()
+        self._revision = 0
         self._data: Dict[str, Any] = {
             "_version": "1.0",
             "description": "Harry Translate 专用专业术语与错别字纠偏语料库",
@@ -184,6 +186,7 @@ class GlossaryManager:
         if os.path.exists(self.dict_path):
             self.load(self.dict_path)
         else:
+            self._data = normalize_catalog(self._data, {})
             self._rebuild_automata()
 
     def load(self, path: Optional[str] = None) -> bool:
@@ -214,33 +217,29 @@ class GlossaryManager:
         t0 = time.perf_counter()
 
         with self._lock:
-            if new_data is not None:
-                # Handle either structured glossary or flat dictionary updates
-                if any(k in new_data for k in ("asr_fixes", "terms_zh_to_en", "terms_en_to_zh")):
-                    for key in ("asr_fixes", "terms_zh_to_en", "terms_en_to_zh"):
-                        if key in new_data and isinstance(new_data[key], dict):
-                            self._data[key] = copy.deepcopy(new_data[key])
-                    for meta_key in ("_version", "description"):
-                        if meta_key in new_data:
-                            self._data[meta_key] = new_data[meta_key]
-                elif "terms" in new_data and isinstance(new_data["terms"], dict):
-                    self._data["terms_zh_to_en"].update(new_data["terms"])
-                else:
-                    # Treat flat dictionary as zh_to_en terminology mappings
-                    for k, v in new_data.items():
-                        if isinstance(v, str):
-                            self._data["terms_zh_to_en"][k] = v
+            update = new_data or {}
+            if not isinstance(update, dict):
+                raise ValueError('词库必须是 JSON 对象。')
+            if '_expected_revision' in update and update['_expected_revision'] != self._revision:
+                raise ValueError('词库已被其他窗口修改。请导出当前编辑后重新加载，避免覆盖新内容。')
+            if update and not any(k in update for k in ('categories', 'entries', 'asr_fixes', 'terms_zh_to_en', 'terms_en_to_zh')):
+                flat = update.get('terms', update)
+                update = {'terms_zh_to_en': dict(self._data.get('terms_zh_to_en', {}),
+                            **{k: v for k, v in flat.items() if isinstance(v, str)})}
+            candidate = normalize_catalog(self._data, update)
+            asr_automaton, zh_to_en_automaton, en_to_zh_automaton = self._build_automata_from_data(candidate)
 
-            asr_automaton, zh_to_en_automaton, en_to_zh_automaton = self._build_automata_from_data(self._data)
+            # Commit to disk first: a failed write must never change the active cloud corpus.
+            if persist and self.dict_path:
+                self._persist_to_disk(candidate)
+            self._data = candidate
+            self._revision += 1
 
             # Atomic reference swapping
             self._asr_automaton = asr_automaton
             self._zh_to_en_automaton = zh_to_en_automaton
             self._en_to_zh_automaton = en_to_zh_automaton
 
-            # Atomic disk persistence if requested
-            if persist and self.dict_path:
-                self._persist_to_disk()
 
         elapsed_ms = (time.perf_counter() - t0) * 1000.0
 
@@ -292,12 +291,12 @@ class GlossaryManager:
         self._zh_to_en_automaton = zh_en
         self._en_to_zh_automaton = en_zh
 
-    def _persist_to_disk(self) -> None:
+    def _persist_to_disk(self, data=None) -> None:
         """Write current dictionary to disk using an atomic replace strategy."""
         temp_path = f"{self.dict_path}.tmp"
         try:
             with open(temp_path, "w", encoding="utf-8") as f:
-                json.dump(self._data, f, ensure_ascii=False, indent=2)
+                json.dump(self._data if data is None else data, f, ensure_ascii=False, indent=2)
             os.replace(temp_path, self.dict_path)
         except Exception:
             if os.path.exists(temp_path):
@@ -305,6 +304,7 @@ class GlossaryManager:
                     os.remove(temp_path)
                 except OSError:
                     pass
+            raise
 
     def apply_fixes(
         self,
@@ -397,10 +397,24 @@ class GlossaryManager:
 
         return sorted(hotwords_set)
 
+    def get_cloud_phrases(self, target_lang: str) -> Dict[str, str]:
+        """Return a snapshot of source -> translation terms for the cloud API.
+
+        ASR corrections are local substitutions, not translation pairs.
+        """
+        key = {"en": "terms_zh_to_en", "zh": "terms_en_to_zh"}.get(target_lang)
+        with self._lock:
+            terms = self._data.get(key, {}) if key else {}
+            return {source.strip(): target.strip() for source, target in terms.items()
+                    if isinstance(source, str) and isinstance(target, str)
+                    and source.strip() and target.strip()}
+
     def to_dict(self) -> Dict[str, Any]:
         """Return a thread-safe copy of active glossary data."""
         with self._lock:
-            return copy.deepcopy(self._data)
+            result = copy.deepcopy(self._data)
+            result['_revision'] = self._revision
+            return result
 
     def get_data(self) -> Dict[str, Any]:
         """Alias for to_dict() for interface compatibility."""

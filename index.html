@@ -666,6 +666,27 @@
             opacity: 1;
             pointer-events: auto;
         }
+        #hotwords-dialog { margin: auto; width: min(850px, 95vw); max-height: 88vh; padding: 0; color: #e2e8f0; background: #101722; border: 1px solid #334155; border-radius: 14px; box-shadow: 0 24px 90px #0009; }
+        #hotwords-dialog::backdrop { background: #0009; }
+        #hotwords-dialog[open] { display: flex; flex-direction: column; overflow: hidden; }
+        #hotwords-dialog .hw-content { overflow-y: auto; min-height: 0; }
+        #hotwords-dialog .hw-heading, #hotwords-dialog .hw-footer { flex-shrink: 0; }
+        #hotwords-dialog .hw-toolbar button { white-space: nowrap; flex-shrink: 0; }
+        #hotwords-dialog .hw-toolbar input:not([type=checkbox]) { width: auto; flex: 1; min-width: 100px; }
+        #hotwords-dialog .hw-heading { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid #263244; }
+        #hotwords-dialog h2 { font-size: 19px; }
+        #hotwords-dialog .hw-content { padding: 16px 24px; }
+        #hotwords-dialog fieldset { border: 0; min-width: 0; }
+        #hotwords-dialog .hw-toolbar { display: flex; align-items: center; gap: 12px; margin: 14px 0; }
+        #hotwords-dialog .hw-toolbar select { flex: 1; }
+        #hotwords-dialog .hw-row { display: grid; grid-template-columns: 1fr 1fr 62px; gap: 10px; align-items: center; margin-bottom: 9px; }
+        #hotwords-dialog .hw-columns { color: #94a3b8; font-size: 13px; }
+        #hotwords-list { overflow-y: auto; max-height: 43vh; padding: 3px; }
+        #hotwords-dialog input { user-select: text; min-width: 0; }
+        #hotwords-dialog .hw-footer { padding: 14px 24px 20px; border-top: 1px solid #263244; }
+        #hotwords-status { white-space: pre-wrap; color: #7dd3fc; font-size: 13px; line-height: 1.6; margin-bottom: 12px; }
+        #hotwords-dialog button:disabled { opacity: .5; cursor: wait; }
+        @media (max-width: 650px) { #hotwords-dialog .hw-content { padding: 12px; } #hotwords-dialog .hw-row { gap: 5px; grid-template-columns: 1fr 1fr 50px; } }
     </style>
 </head>
 <body style="--src-font: 24px; --trans-font: 36px;">
@@ -687,6 +708,7 @@
         </div>
         <div class="controls" id="header-controls">
             <a href="/" class="btn-link" id="btn-home" style="display: none;">主控面板</a>
+            <button id="btn-meeting-hotwords" class="btn-link" onclick="openMeetingHotwords()">会议热词</button>
             <button id="btn-open-drawer" class="btn-link btn-config-highlight" onclick="openConfigDrawer()" title="打开系统全局配置抽屉">⚙️ 系统配置</button>
             <button onclick="changeFontSize(2)">字体 +</button>
             <button onclick="changeFontSize(-2)">字体 -</button>
@@ -763,7 +785,15 @@
 
             <!-- 2. 音频输入设备选择 (双通道物理隔离) -->
             <div class="drawer-section">
-                <div class="drawer-section-title">🎙️ 音频输入设备绑定 (双通道物理隔离)</div>
+                <div class="drawer-section-title">🎙️ 音频输入设备</div>
+                <div class="drawer-field">
+                    <label class="drawer-label" for="drawer-audio-mode">使用场景：</label>
+                    <select id="drawer-audio-mode" class="drawer-select" onchange="document.getElementById('drawer-device-b').disabled = this.value === 'shared_mic'">
+                        <option value="shared_mic">共用麦克风：左右两栏都听我说话</option>
+                        <option value="meeting">远程会议：左栏听麦克风，右栏听电脑声音</option>
+                    </select>
+                    <div class="drawer-note">左栏输出英文，右栏输出中文。共用麦克风适合当面对话或自行测试；远程会议需要配置内录设备。</div>
+                </div>
                 <div class="drawer-field">
                     <div class="drawer-label">Channel A (麦克风 / 中方发言)：</div>
                     <select id="drawer-device-a" class="drawer-select">
@@ -779,7 +809,7 @@
                     <div style="margin-top: 4px;">
                         <span id="drawer-loopback-badge" class="loopback-badge badge-warning">自检中...</span>
                     </div>
-                    <div class="drawer-note">外宾发言通道，采集会议回环音频并翻译为中文。未配置虚拟声卡时安全静默，绝不盗用麦克风。</div>
+                    <div class="drawer-note">此设备仅用于远程会议模式；共用麦克风模式下，右栏使用上方的 Channel A 麦克风。</div>
                 </div>
             </div>
 
@@ -812,10 +842,51 @@
         </div>
     </aside>
 
+    <dialog id="hotwords-dialog" aria-labelledby="hotwords-title">
+        <div class="hw-heading">
+            <h2 id="hotwords-title">会议热词</h2>
+            <button type="button" aria-label="关闭会议热词" onclick="closeMeetingHotwords()">✕</button>
+        </div>
+        <div class="hw-content">
+            <p class="drawer-note">填写会议中的专有名词及希望采用的译法，例如“提示词工程 → Prompt Engineering”。保存后自动发送到云端；更新时翻译会短暂重连。</p>
+            <fieldset id="hotwords-fields">
+                <div class="hw-toolbar">
+                    <label for="hotwords-direction">翻译方向</label>
+                    <select id="hotwords-direction" class="drawer-select" onchange="changeHotwordsDirection()">
+                        <option value="en">中译英</option><option value="zh">英译中</option>
+                    </select>
+                    <button type="button" id="hotwords-add" onclick="addMeetingHotword()">＋ 添加热词</button>
+                </div>
+                <div class="hw-toolbar" style="flex-wrap:wrap">
+                    <select id="hotwords-category" class="drawer-select" aria-label="分类筛选" onchange="renderMeetingHotwords()"></select>
+                    <input id="hotwords-search" class="drawer-input" placeholder="搜索原词、译法或备注" aria-label="搜索热词" oninput="renderMeetingHotwords()">
+                    <button type="button" onclick="editHotwordCategories()">管理分类</button>
+                </div>
+                <div id="hotwords-categories" hidden></div>
+                <div class="hw-toolbar" style="flex-wrap:wrap">
+                    <button type="button" onclick="enableVisibleHotwords(true)">启用当前筛选</button><button type="button" onclick="enableVisibleHotwords(false)">停用当前筛选</button>
+                    <button type="button" onclick="exportMeetingHotwords()">导出词库</button>
+                    <select id="hotwords-import-mode" class="drawer-select" aria-label="导入方式"><option value="merge">合并导入（冲突不覆盖）</option><option value="replace">替换整个词库</option></select>
+                    <button type="button" onclick="document.getElementById('hotwords-import').click()">导入词库</button>
+                    <input id="hotwords-import" type="file" accept="application/json,.json" hidden onchange="importMeetingHotwords(this)">
+                </div>
+                <div class="hw-row hw-columns"><span id="hotwords-source-label">中文原词</span><span id="hotwords-target-label">指定英文译法</span><span>操作</span></div>
+                <div id="hotwords-list"></div>
+                <p id="hotwords-count" class="drawer-note"></p>
+            </fieldset>
+        </div>
+        <div class="hw-footer">
+            <p id="hotwords-status" role="status" aria-live="polite">正在加载词库…</p>
+            <button type="button" id="hotwords-save" class="btn-drawer-save" onclick="saveMeetingHotwords()">保存并应用到云端</button>
+        </div>
+    </dialog>
+
+    <script src="/assets/meeting-hotwords.js"></script>
     <!-- 浮动 Toast 通知 -->
     <div id="toast-notification" class="toast-notification"></div>
 
     <script>
+
         // AC-14: 严格锁定 50 节点滑动循环窗口（防长时会议 DOM 膨胀与内存泄漏）
         const MAX_CARDS = 50;
 
@@ -874,6 +945,7 @@
             try {
                 const res = await fetch("/api/stats");
                 const data = await res.json();
+
                 updateUsageDisplay(data);
             } catch (e) {}
         }
@@ -905,12 +977,22 @@
             }
 
             connect(dotElem, statusElem, statusPrefix) {
+                if (statusElem) {
+                    statusElem.dataset.audioChannel = this.channel;
+                    statusElem.dataset.statusPrefix = statusPrefix;
+                }
                 const protocol = location.protocol === "https:" ? "wss:" : "ws:";
                 this.ws = new WebSocket(`${protocol}//${location.host}/ws/${this.channel}`);
 
                 this.ws.onopen = () => {
                     if (dotElem) dotElem.classList.add("connected");
-                    if (statusElem) statusElem.textContent = `${statusPrefix}已就绪 (正在监听麦克风)`;
+                    if (statusElem) {
+                        statusElem.textContent = `${statusPrefix}已连接`;
+                        fetch('/api/meta').then(r => r.json()).then(data => {
+                            const source = this.channel === 'en' || data.audio_input_mode === 'shared_mic' ? '麦克风' : '电脑声音';
+                            statusElem.textContent = `${statusPrefix}已连接（输入：${source}）`;
+                        }).catch(() => {});
+                    }
                 };
 
                 this.ws.onmessage = (event) => {
@@ -1116,10 +1198,10 @@
             const splitZhStatus = document.getElementById("split-zh-status");
 
             enHandler = new ChannelStreamHandler("en", enContainer);
-            enHandler.connect(null, splitEnStatus, "已连接");
+            enHandler.connect(null, splitEnStatus, "");
 
             zhHandler = new ChannelStreamHandler("zh", zhContainer);
-            zhHandler.connect(null, splitZhStatus, "已连接");
+            zhHandler.connect(null, splitZhStatus, "");
         }
 
         // 初始拉取一次统计
@@ -1212,6 +1294,29 @@
                 const res = await fetch("/api/meta");
                 if (!res.ok) return;
                 const data = await res.json();
+                document.getElementById("drawer-audio-mode").value = data.audio_input_mode || "meeting";
+                document.getElementById("drawer-device-b").disabled = data.audio_input_mode === "shared_mic";
+                document.querySelectorAll('[data-audio-channel]').forEach(el => {
+                    const source = el.dataset.audioChannel === 'en' || data.audio_input_mode === 'shared_mic' ? '麦克风' : '电脑声音';
+                    el.textContent = `${el.dataset.statusPrefix}已连接（输入：${source}）`;
+                });
+                let cloudStatus = document.getElementById("drawer-cloud-status");
+                if (!cloudStatus) {
+                    cloudStatus = document.createElement("p");
+                    cloudStatus.id = "drawer-cloud-status";
+                    document.getElementById("drawer-masked-key").parentElement.appendChild(cloudStatus);
+                }
+                const cloud = data.cloud_status && data.cloud_status.en;
+                cloudStatus.textContent = cloud && cloud.ready ? "翻译服务：已连接" :
+                    "翻译服务：" + ((cloud && cloud.error) || "尚未连接，请检查密钥和模型配置");
+                const corpusLabels = {confirmed: '云端已确认', sent: '等待云端确认', pending: '等待连接', unconfirmed: '云端未回传确认', error: '发送失败', unsupported: '当前引擎未接入'};
+                if (data.cloud_status) {
+                    cloudStatus.textContent += '；' + ['en', 'zh'].map(channel => {
+                        const state = data.cloud_status[channel] || {};
+                        return `${channel === 'en' ? '中译英' : '英译中'}术语 ${state.cloud_phrases_count || 0} 条（${corpusLabels[state.corpus_status] || '状态未知'}）`;
+                    }).join('，');
+                }
+
 
                 // 1. DashScope API Key 脱敏展示
                 const maskedSpan = document.getElementById("drawer-masked-key");
@@ -1238,7 +1343,7 @@
                         const optB = document.createElement("option");
                         optB.value = dev.index;
                         optB.textContent = `[${dev.index}] ${dev.name}${dev.is_loopback ? " (虚拟内录推荐)" : ""}`;
-                        selB.appendChild(optB);
+                        if (dev.is_loopback) selB.appendChild(optB);
                     });
 
                     if (data.channel_a_device !== null && data.channel_a_device !== undefined) {
@@ -1246,6 +1351,12 @@
                     }
                     if (data.channel_b_device !== null && data.channel_b_device !== undefined) {
                         selB.value = String(data.channel_b_device);
+                    } else {
+                        const idleOption = document.createElement("option");
+                        idleOption.value = "";
+                        idleOption.textContent = "未启用会议内录";
+                        selB.prepend(idleOption);
+                        selB.value = "";
                     }
                 }
 
@@ -1254,12 +1365,15 @@
                 if (loopbackBadge) {
                     const hasLoopback = devices.some(d => d.is_loopback);
                     const isBIdle = Boolean(data.channel_b_idle);
-                    if (hasLoopback && !isBIdle) {
+                    if (data.audio_input_mode === "shared_mic") {
+                        loopbackBadge.className = "loopback-badge badge-success";
+                        loopbackBadge.textContent = "右栏当前使用 Channel A 麦克风";
+                    } else if (hasLoopback && !isBIdle && data.channel_b_device != null) {
                         loopbackBadge.className = "loopback-badge badge-success";
                         loopbackBadge.textContent = "✅ 已检测到虚拟声卡 (BlackHole / 立体声混音)";
                     } else if (hasLoopback) {
-                        loopbackBadge.className = "loopback-badge badge-success";
-                        loopbackBadge.textContent = "✅ 已检测到虚拟声卡 (就绪待命)";
+                        loopbackBadge.className = "loopback-badge badge-warning";
+                        loopbackBadge.textContent = "⚠️ 找到内录设备，但尚未成功启用";
                     } else {
                         loopbackBadge.className = "loopback-badge badge-warning";
                         loopbackBadge.textContent = "⚠️ 未配置虚拟声卡，Channel B 安全静默，绝不盗用麦克风";
@@ -1292,14 +1406,14 @@
                 const selB = document.getElementById("drawer-device-b");
                 const engineSel = document.getElementById("drawer-engine");
 
-                const payload = {};
+                const payload = {audio_input_mode: document.getElementById("drawer-audio-mode").value};
                 if (apiKeyInput && apiKeyInput.value.trim()) {
                     payload.api_key = apiKeyInput.value.trim();
                 }
                 if (selA && selA.value !== "") {
                     payload.channel_a_device = parseInt(selA.value, 10);
                 }
-                if (selB && selB.value !== "") {
+                if (payload.audio_input_mode === "meeting" && selB && selB.value !== "") {
                     payload.channel_b_device = parseInt(selB.value, 10);
                 }
                 if (engineSel && engineSel.value) {

@@ -43,7 +43,7 @@ from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 # Core Audio Pipeline
 from core.audio_pipeline import (
@@ -63,11 +63,22 @@ from engines.qwen_translators import (
     TokenBucketLimiter,
 )
 
-# Load .env
-load_dotenv()
+# Desktop installs never inherit a developer's .env or API key.
+DESKTOP_MODE = os.getenv("HARRY_DESKTOP") == "1"
+from core.app_paths import data_path
+if not DESKTOP_MODE:
+    load_dotenv()
 
 ENV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+if DESKTOP_MODE:
+    ENV_FILE = str(data_path('preferences.env'))
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "")
+if DESKTOP_MODE:
+    DASHSCOPE_API_KEY = ""
+    os.environ.pop("DASHSCOPE_API_KEY", None)
+AUDIO_INPUT_MODE = os.getenv("AUDIO_INPUT_MODE", "meeting")
+if AUDIO_INPUT_MODE not in ("shared_mic", "meeting"):
+    AUDIO_INPUT_MODE = "meeting"
 QWEN_REALTIME_WS_URL = os.getenv(
     "QWEN_REALTIME_WS_URL",
     "wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=qwen3.8-livetranslate-flash-realtime",
@@ -90,7 +101,7 @@ should_run = True
 # Terminology Management Engine (Milestone 2)
 from core.glossary_manager import get_glossary_manager
 
-glossary_mgr = get_glossary_manager()
+glossary_mgr = get_glossary_manager(str(data_path('glossary.json'))) if DESKTOP_MODE else get_glossary_manager()
 glossary_manager = glossary_mgr
 
 # Client Connection Pools (Strict Physical Channel Decoupling)
@@ -254,9 +265,12 @@ class ChannelSession:
             hotwords = glossary_mgr.get_hotwords(channel=self.name)
         if hasattr(self.qwen_engine, "live_update_session"):
             try:
-                self.qwen_engine.live_update_session(self.target_lang, hotwords)
-            except Exception:
-                pass
+                self.qwen_engine.live_update_session(
+                    self.target_lang, hotwords,
+                    phrases=glossary_mgr.get_cloud_phrases(self.target_lang),
+                )
+            except Exception as error:
+                self.qwen_engine._on_ws_error(None, error)
         elif hasattr(self.qwen_engine, "hotwords"):
             self.qwen_engine.hotwords = list(hotwords)
         if hasattr(self.gummy_engine, "set_hotwords"):
@@ -411,6 +425,9 @@ class ChannelSession:
 
     def switch_engine(self, engine_model: str) -> None:
         """Switch active engine between Gummy and Qwen 3.8."""
+        was_running = self.is_ready.is_set()
+        if was_running:
+            self.stop()
         if "gummy" in engine_model.lower():
             self.active_engine_type = "gummy-realtime-v1"
             self.active_engine = self.gummy_engine
@@ -418,10 +435,14 @@ class ChannelSession:
             self.active_engine_type = "qwen3.8-livetranslate-flash-realtime"
             self.active_engine = self.qwen_engine
         self.sync_hotwords()
+        if was_running:
+            self.start(DASHSCOPE_API_KEY)
 
     def update_api_key(self, new_key: str) -> None:
+        self.stop()
         self.gummy_engine.api_key = new_key
         self.qwen_engine.api_key = new_key
+        self.start(new_key)
 
     def set_target_lang(self, new_target: str) -> None:
         with self.state_lock:
@@ -429,7 +450,10 @@ class ChannelSession:
             self.gummy_engine.target_lang = new_target
         if hasattr(self.qwen_engine, "live_update_session"):
             hotwords = glossary_mgr.get_hotwords(channel=self.name)
-            self.qwen_engine.live_update_session(target_lang=new_target, hotwords=hotwords)
+            self.qwen_engine.live_update_session(
+                target_lang=new_target, hotwords=hotwords,
+                phrases=glossary_mgr.get_cloud_phrases(new_target),
+            )
 
     def simulate_event(
         self,
@@ -458,9 +482,8 @@ class ChannelSession:
     def start(self, api_key: Optional[str] = None) -> None:
         key = api_key or DASHSCOPE_API_KEY
         self.sync_hotwords()
-        self.gummy_engine.start(key)
-        self.qwen_engine.start(key)
-        self.is_ready.set()
+        if self.active_engine.start(key):
+            self.is_ready.set()
 
     def stop(self) -> None:
         self.gummy_engine.stop()
@@ -495,7 +518,16 @@ audio_capture_mgr = FastAudioCaptureManager(
     sample_rate=SAMPLE_RATE,
     chunk_size=CHUNK_SIZE,
     on_audio_chunk=handle_audio_chunk,
+    defer_open=DESKTOP_MODE,
 )
+
+# Device indices change when USB/Bluetooth devices are connected. Remember the name.
+preferred_mic = os.getenv("AUDIO_DEVICE_A_NAME", "")
+if preferred_mic and not DESKTOP_MODE:
+    for device in audio_capture_mgr.get_devices().get("devices", []):
+        if device.get("name") == preferred_mic:
+            audio_capture_mgr.set_device(device["index"], channel="A")
+            break
 
 def is_channel_subscribed(channel_key: str) -> bool:
     """
@@ -506,6 +538,8 @@ def is_channel_subscribed(channel_key: str) -> bool:
     When only one channel is active (e.g., student in English tutoring only listening to 'zh'),
     audio streaming to the other channel is completely gated, cutting Cloud API token costs by 50%.
     """
+    if DESKTOP_MODE and (not app.state.desktop.validated or not app.state.desktop.running):
+        return False
     clients = connected_clients.get(channel_key)
     if clients and len(clients) > 0:
         return True
@@ -517,15 +551,13 @@ def is_channel_subscribed(channel_key: str) -> bool:
 def _on_mic_pcm(raw_pcm: bytes) -> None:
     if is_channel_subscribed("en"):
         channel_en.push_audio(raw_pcm)
-    # Smart audio multiplexing: When Channel B has no dedicated virtual loopback soundcard
-    # (standard Mac setup or single-mic test), mirror mic audio to channel_zh as zero-config fallback.
-    # This guarantees that both floating windows (中译英 & 英译中) simultaneously work out of the box!
-    if audio_capture_mgr.worker_b.is_idle:
+    # Explicit shared-microphone mode; never mix meeting audio into the same stream.
+    if AUDIO_INPUT_MODE == "shared_mic":
         if is_channel_subscribed("zh"):
             channel_zh.push_audio(raw_pcm)
 
 def _on_loopback_pcm(raw_pcm: bytes) -> None:
-    if not audio_capture_mgr.worker_b.is_idle:
+    if AUDIO_INPUT_MODE == "meeting" and not audio_capture_mgr.worker_b.is_idle:
         if is_channel_subscribed("zh"):
             channel_zh.push_audio(raw_pcm)
 
@@ -550,12 +582,13 @@ hud_lock_mutex = threading.Lock()
 async def lifespan(app: FastAPI):
     global main_loop
     main_loop = asyncio.get_running_loop()
-    if not audio_capture_mgr.is_running:
+    if not DESKTOP_MODE and not audio_capture_mgr.is_running:
         audio_capture_mgr.start()
     for ch in active_channels:
         ch.switch_engine(active_engine_type)
         ch.sync_hotwords()
-        ch.start(DASHSCOPE_API_KEY)
+        if not DESKTOP_MODE:
+            ch.start(DASHSCOPE_API_KEY)
     print(">> [服务启动] Harry Translate (哈利同传) 双通道极速同传系统已就绪！")
     print(f"   • 当前同传引擎: {active_engine_type}")
     print("   • 主控面板:    http://localhost:8000/")
@@ -578,6 +611,13 @@ app = FastAPI(title="Harry Translate 国际会议实时双语同传系统", life
 @app.websocket("/ws/{channel}")
 async def websocket_channel_endpoint(websocket: WebSocket, channel: str):
     """Client connection endpoint for /ws/en and /ws/zh."""
+    if DESKTOP_MODE:
+        from urllib.parse import urlsplit
+        origin = websocket.headers.get('origin', '')
+        if (not app.state.desktop.validated or not app.state.desktop.authenticated(websocket)
+                or (origin and urlsplit(origin).netloc != websocket.headers.get('host'))):
+            await websocket.close(code=1008)
+            return
     if channel not in connected_clients:
         await websocket.close(code=1003)
         return
@@ -602,12 +642,24 @@ async def websocket_default_endpoint(websocket: WebSocket):
 # ---------------------------------------------------------------------------
 # Physical Presentation Routes
 # ---------------------------------------------------------------------------
+def presentation_html(content):
+    if DESKTOP_MODE:
+        content = content.replace('</body>', '<script src="/desktop/controls.js"></script></body>')
+    return HTMLResponse(content=content, media_type="text/html; charset=utf-8")
+
+
 @app.get("/")
 def get_dashboard():
     """Dashboard / Console Monitor."""
     html_path = os.path.join(os.path.dirname(__file__), "index.html")
     with open(html_path, "r", encoding="utf-8") as f:
-        return HTMLResponse(content=f.read(), media_type="text/html; charset=utf-8")
+        return presentation_html(f.read())
+
+
+@app.get('/assets/meeting-hotwords.js')
+def get_meeting_hotwords_script():
+    from core.app_paths import resource_path
+    return Response(resource_path('meeting-hotwords.js').read_text(encoding='utf-8'), media_type='text/javascript')
 
 
 @app.get("/en")
@@ -615,7 +667,7 @@ def get_en_screen():
     """Dedicated English Display Screen (Channel A)."""
     html_path = os.path.join(os.path.dirname(__file__), "index.html")
     with open(html_path, "r", encoding="utf-8") as f:
-        return HTMLResponse(content=f.read(), media_type="text/html; charset=utf-8")
+        return presentation_html(f.read())
 
 
 @app.get("/zh")
@@ -623,7 +675,7 @@ def get_zh_screen():
     """Dedicated Chinese Display Screen (Channel B)."""
     html_path = os.path.join(os.path.dirname(__file__), "index.html")
     with open(html_path, "r", encoding="utf-8") as f:
-        return HTMLResponse(content=f.read(), media_type="text/html; charset=utf-8")
+        return presentation_html(f.read())
 
 
 @app.get("/split")
@@ -631,7 +683,7 @@ def get_split_screen():
     """Dual-Column Monitor Screen with Config Drawer."""
     html_path = os.path.join(os.path.dirname(__file__), "index.html")
     with open(html_path, "r", encoding="utf-8") as f:
-        return HTMLResponse(content=f.read(), media_type="text/html; charset=utf-8")
+        return presentation_html(f.read())
 
 
 @app.get("/hud")
@@ -697,6 +749,14 @@ def get_meta():
     return JSONResponse(content={
         "status": "ok",
         "system_status": "online",
+        "audio_input_mode": AUDIO_INPUT_MODE,
+        "cloud_status": {ch.name: {
+            "ready": ch.active_engine.is_ready.is_set() and not ch.active_engine.mock_mode,
+            "error": getattr(ch.active_engine, "last_error", ""),
+            "corpus_status": getattr(ch.active_engine, "corpus_status", "unsupported"),
+            "cloud_phrases_count": len(getattr(ch.active_engine, "cloud_phrases", {})),
+        } for ch in active_channels},
+        "microphone_frames": audio_capture_mgr.worker_a.total_frames_captured,
         "active_engine": active_engine_type,
         "engine_type": active_engine_type,
         "engine_model": active_engine_type,
@@ -719,9 +779,9 @@ def get_meta():
             },
             "channel_b": {
                 "name": channel_zh.name,
-                "device": devices_info.get("channel_b_device"),
-                "is_idle": devices_info.get("channel_b_idle", False),
-                "is_loopback": True,
+                "device": devices_info.get("channel_a_device" if AUDIO_INPUT_MODE == "shared_mic" else "channel_b_device"),
+                "is_idle": audio_capture_mgr.worker_a.is_idle if AUDIO_INPUT_MODE == "shared_mic" else devices_info.get("channel_b_idle", False),
+                "is_loopback": AUDIO_INPUT_MODE == "meeting",
                 "target_lang": channel_zh.target_lang,
                 "label": channel_zh.label,
             },
@@ -736,6 +796,7 @@ def get_config():
     devices_info = audio_capture_mgr.get_devices()
     return JSONResponse(content={
         "status": "ok",
+        "audio_input_mode": AUDIO_INPUT_MODE,
         "engine_model": active_engine_type,
         "active_engine": active_engine_type,
         "api_key_masked": masked_key,
@@ -754,7 +815,7 @@ async def post_config(request: Request):
     Dynamic partial configuration update.
     CRITICAL: Submitting an empty or whitespace API key MUST NEVER overwrite an existing key in .env!
     """
-    global DASHSCOPE_API_KEY, active_engine_type
+    global DASHSCOPE_API_KEY, active_engine_type, AUDIO_INPUT_MODE
     try:
         body = await request.json()
     except Exception:
@@ -762,7 +823,15 @@ async def post_config(request: Request):
     if not isinstance(body, dict):
         body = {}
 
+    mode = body.get("audio_input_mode")
+    if mode is not None and mode not in ("shared_mic", "meeting"):
+        return JSONResponse(status_code=400, content={"status": "error", "message": "无效的音频输入模式"})
+
     updated: Dict[str, Any] = {}
+    if mode is not None:
+        AUDIO_INPUT_MODE = mode
+        set_env_value("AUDIO_INPUT_MODE", mode)
+        updated["audio_input_mode"] = mode
 
     # 1. API Key handling (CRITICAL: Never overwrite with empty/whitespace!)
     api_key = body.get("api_key")
@@ -792,6 +861,8 @@ async def post_config(request: Request):
         try:
             res_a = audio_capture_mgr.set_device(int(dev_a), channel="A")
             updated["channel_a"] = res_a
+            if res_a.get("status") == "ok":
+                set_env_value("AUDIO_DEVICE_A_NAME", audio_capture_mgr.worker_a.device_name)
         except Exception as e:
             updated["channel_a_error"] = str(e)
 
@@ -818,6 +889,7 @@ async def post_config(request: Request):
             active_engine_type = "qwen3.8-livetranslate-flash-realtime"
         for ch in active_channels:
             ch.switch_engine(active_engine_type)
+        set_env_value("DEFAULT_ENGINE", active_engine_type)
         updated["engine_model"] = active_engine_type
 
     # 5. Language switches
@@ -1001,7 +1073,7 @@ async def post_glossary(request: Request):
     """
     Dynamic atomic hot-reload for terminology dictionary in <= 5ms (AC-G4).
     Accepts JSON glossary body, invokes reload(persist=True), and dynamically
-    pushes updated hotwords to active channel sessions without reconnecting.
+    reconnects changed Qwen sessions to inject the updated translation phrase mappings.
     Returns {"status": "ok", "reload_ms": float, "terms_count": int}.
     """
     t0 = time.perf_counter()
@@ -1015,7 +1087,12 @@ async def post_glossary(request: Request):
     if not isinstance(payload, dict):
         payload = {}
 
-    reload_res = glossary_mgr.reload(new_data=payload, persist=True)
+    try:
+        reload_res = glossary_mgr.reload(new_data=payload, persist=True)
+    except ValueError as error:
+        return JSONResponse(status_code=400, content={"status": "error", "message": str(error)})
+    except OSError:
+        return JSONResponse(status_code=500, content={"status": "error", "message": "词库保存失败，请检查磁盘空间和写入权限。"})
 
     # Dynamically trigger hotwords update on active channel sessions without restarting server
     for ch in active_channels:
@@ -1035,6 +1112,7 @@ async def post_glossary(request: Request):
         "terms_count": terms_count,
         "total_terms": terms_count,
         "counts": reload_res.get("counts", {}),
+        "revision": glossary_mgr.to_dict().get('_revision', 0),
     })
 
 
@@ -1054,15 +1132,13 @@ def get_glossary_hotwords(channel: str = "zh"):
 # Server Main Entrypoint
 # ---------------------------------------------------------------------------
 def main():
-    for ch in active_channels:
-        threading.Thread(target=ch.run_ws, daemon=True).start()
-        threading.Thread(target=ch.run_audio_sender, daemon=True).start()
-
-    audio_capture_mgr.start()
-
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
+    uvicorn.run(app, host="127.0.0.1" if DESKTOP_MODE else "0.0.0.0", port=8000, log_level="warning")
 
+
+if DESKTOP_MODE:
+    from core.desktop_service import install_desktop_routes
+    install_desktop_routes(app, sys.modules[__name__])
 
 if __name__ == "__main__":
     main()

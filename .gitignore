@@ -23,8 +23,15 @@ tests/report.md
 *.m4a
 recordings/
 output/
+dist/
+build/HarryTranslate/
+installer/MicrosoftEdgeWebview2Setup.exe
 
 # Editors
 .idea/
 .vscode/
 *.swp
+
+# Per-user credentials and preferences must never be committed
+credentials.json
+preferences.env

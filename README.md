@@ -1,3 +1,8 @@
+> **Windows desktop contribution preview / Windows 桌面贡献预览版**
+> This branch is based on upstream v3.6 (`d039a75`), not v4.0. It adds a Windows installer, API-key onboarding and categorized meeting glossaries. Later upstream v4 features are not included; porting is required before merging into current main.
+> 本分支基于原作者 v3.6，包含 Windows 安装包构建、API Key 引导与分类热词管理；不包含后续 v4.0 功能，不能直接视为最新版替代品。
+> See [贡献说明](docs/CONTRIBUTION_NOTES.md) and [桌面版使用说明](docs/DESKTOP_QUICKSTART.md).
+
 # Harry Translate (哈利同传) - 工业级双通道极速同声传译系统
 
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-blue.svg)
@@ -146,6 +151,8 @@ Harry Translate (哈利同传) 专为涉外商务会议、学术研讨会、外�
 | **`Cmd + Shift + T`**<br>`Ctrl + Shift + T` | **双语通道快速互切** | 在 `中 ➔ EN`（中译英）与 `EN ➔ 中`（英译中）之间瞬时平滑翻转 |
 | **`Cmd + Shift + R`**<br>`Ctrl + Shift + R` | **双语视口比例快速切换** | 在 **`68:32`**（经典出厂比例）与 **`65:35`**（扩展原文比例）之间无缝瞬时切换，自动本地持久化记忆 |
 | **`Cmd + Shift + C`**<br>`Ctrl + Shift + C` | **字体调色方案轮换** | 循环切换 5 套高对比配色（暖金 ➔ 腾讯白 ➔ 冰川青 ➔ 黑曜石 ➔ 薄荷绿） |
+| **鼠标悬停顶部 24px 传感器** | **唤出控制胶囊** | 平时 100% 隐藏，鼠标移至顶端自动浮现通道药丸、配色药丸、穿透锁、透明度与设置键 |
+| **按住左上角把手 (`⠿`) 拖拽** | **120 FPS 窗口移动** | 硬件级无延迟拖拽窗口跨屏漫游 |
 | **鼠标悬停顶部 24px 传感器** | **唤出控制胶囊** | 平时 100% 隐藏，鼠标移至顶端自动浮现通道药丸、配色药丸、穿透锁、透明度与设置键 |
 | **按住左上角把手 (`⠿`) 拖拽** | **120 FPS 窗口移动** | 硬件级无延迟拖拽窗口跨屏漫游 |
 

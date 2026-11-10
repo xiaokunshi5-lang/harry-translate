@@ -20,6 +20,7 @@ import time
 import ctypes
 import ctypes.util
 import argparse
+from pathlib import Path
 import threading
 from typing import Optional, Dict, Any
 
@@ -678,24 +679,24 @@ class HudApi:
     """
 
     def __init__(self, app: "FloatingHUDApp"):
-        self.app = app
+        self._app = app
 
     def toggle_lock(self, locked: Optional[bool] = None) -> bool:
         """
         Toggles native click-through and syncs with backend POST /api/hud/lock.
         """
         if locked is None:
-            new_locked = not self.app.is_click_through()
+            new_locked = not self._app.is_click_through()
         else:
             new_locked = bool(locked)
 
-        self.app.set_click_through(new_locked)
+        self._app.set_click_through(new_locked)
 
         # Asynchronously sync with backend HTTP endpoint (non-blocking)
         def _sync_backend_lock():
             try:
                 import urllib.request
-                url = f"http://{self.app.host}:{self.app.port}/api/hud/lock"
+                url = f"http://{self._app.host}:{self._app.port}/api/hud/lock"
                 payload = json.dumps({"locked": new_locked}).encode("utf-8")
                 req = urllib.request.Request(
                     url,
@@ -709,47 +710,47 @@ class HudApi:
                 pass
 
         threading.Thread(target=_sync_backend_lock, daemon=True).start()
-        return bool(self.app.is_click_through())
+        return bool(self._app.is_click_through())
 
     def set_stealth_mode(self, enable: bool) -> bool:
         """Toggles stealth mode (screen-share exclusion)."""
-        return self.app.set_stealth_mode(enable)
+        return self._app.set_stealth_mode(enable)
 
     def is_stealth_mode(self) -> bool:
         """Returns whether stealth mode is active."""
-        return self.app.is_stealth_mode()
+        return self._app.is_stealth_mode()
 
     def open_browser_config(self) -> bool:
         """Opens system configuration drawer on the main web presentation console in default browser."""
         import webbrowser
-        url = f"http://{self.app.host}:{self.app.port}/split?drawer=open"
+        url = f"http://{self._app.host}:{self._app.port}/split?drawer=open"
         threading.Thread(target=lambda: webbrowser.open(url), daemon=True).start()
         return True
 
     def close_window(self):
         """Gracefully closes HUD."""
-        self.app.close()
+        self._app.close()
 
     def get_status(self) -> Dict[str, Any]:
         """Returns current lock status, stealth status, window position, platform info."""
         pos_x = 0
         pos_y = 0
         try:
-            if self.app.window:
-                pos_x = getattr(self.app.window, "x", 0) or 0
-                pos_y = getattr(self.app.window, "y", 0) or 0
+            if self._app.window:
+                pos_x = getattr(self._app.window, "x", 0) or 0
+                pos_y = getattr(self._app.window, "y", 0) or 0
         except Exception:
             pass
 
         return {
-            "locked": self.app.is_click_through(),
-            "stealth": self.app.is_stealth_mode(),
+            "locked": self._app.is_click_through(),
+            "stealth": self._app.is_stealth_mode(),
             "x": pos_x,
             "y": pos_y,
-            "width": self.app.width,
-            "height": self.app.height,
+            "width": self._app.width,
+            "height": self._app.height,
             "platform": sys.platform,
-            "channel": self.app.channel,
+            "channel": self._app.channel,
             "status": "ok",
         }
 
@@ -819,12 +820,13 @@ class FloatingHUDApp:
 
         if webview is not None:
             cache_ts = int(time.time() * 1_000_000)
+            page_url = f"http://{self.host}:{self.port}/hud" if sys.platform == "win32" else Path(html_path).resolve().as_uri()
             if self.is_dual:
                 # Create dual floating windows: en (中译英) on top, zh (英译中) below
                 # Vertically stacked with 30px clear separation to prevent overlap:
                 # Top window: y = 70, Bottom window: y = 260 (70 + 160 + 30)
-                url_en = f"file://{html_path}?host={self.host}&port={self.port}&channel=en&_t={cache_ts}"
-                url_zh = f"file://{html_path}?host={self.host}&port={self.port}&channel=zh&_t={cache_ts}"
+                url_en = f"{page_url}?host={self.host}&port={self.port}&channel=en&_t={cache_ts}"
+                url_zh = f"{page_url}?host={self.host}&port={self.port}&channel=zh&_t={cache_ts}"
 
                 win_en = webview.create_window(
                     title="Qwen_Meeting_HUD_En_中译英",
@@ -838,7 +840,7 @@ class FloatingHUDApp:
                     on_top=True,
                     resizable=True,
                     easy_drag=False,
-                    background_color="#00000000",
+                    background_color="#000000",
                     js_api=self.api,
                 )
                 win_zh = webview.create_window(
@@ -853,7 +855,7 @@ class FloatingHUDApp:
                     on_top=True,
                     resizable=True,
                     easy_drag=False,
-                    background_color="#00000000",
+                    background_color="#000000",
                     js_api=self.api,
                 )
                 self.windows = [win_en, win_zh]
@@ -862,9 +864,9 @@ class FloatingHUDApp:
                 self.controller = self.controllers[0]
             else:
                 if self.channel and self.channel != "auto":
-                    url = f"file://{html_path}?host={self.host}&port={self.port}&channel={self.channel}&_t={cache_ts}"
+                    url = f"{page_url}?host={self.host}&port={self.port}&channel={self.channel}&_t={cache_ts}"
                 else:
-                    url = f"file://{html_path}?host={self.host}&port={self.port}&_t={cache_ts}"
+                    url = f"{page_url}?host={self.host}&port={self.port}&_t={cache_ts}"
                 self.window = webview.create_window(
                     title="Qwen_Meeting_HUD_Overlay_7x9",
                     url=url,
@@ -877,7 +879,7 @@ class FloatingHUDApp:
                     on_top=True,
                     resizable=True,
                     easy_drag=False,
-                    background_color="#00000000",
+                    background_color="#000000",
                     js_api=self.api,
                 )
                 self.windows = [self.window]

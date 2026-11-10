@@ -153,6 +153,7 @@ class GummyZeroCopyEngine:
         self.api_key = api_key or os.getenv("DASHSCOPE_API_KEY", "")
         self.sample_rate = sample_rate
         self.mock_mode = mock_mode or (not HAS_DASHSCOPE)
+        self.last_error = ""
 
         self.recognizer = None
         self.is_ready = threading.Event()
@@ -195,7 +196,9 @@ class GummyZeroCopyEngine:
                     engine_ref.is_ready.clear()
 
                 def on_error(self, result: Any) -> None:
-                    pass
+                    engine_ref.last_error = str(result).replace(effective_key, "[REDACTED]")[:500]
+                    engine_ref.is_ready.clear()
+                    print(f"[翻译服务错误/{engine_ref.channel_id}] {engine_ref.last_error}", flush=True)
 
                 def on_event(
                     self,
@@ -264,12 +267,12 @@ class GummyZeroCopyEngine:
             self.recognizer.start()
             self.is_running = True
             return True
-        except Exception:
-            # Fall back to mock mode if connection/init fails
-            self.mock_mode = True
-            self.is_running = True
-            self.is_ready.set()
-            return True
+        except Exception as error:
+            self.last_error = str(error).replace(effective_key, "[REDACTED]")[:500]
+            self.is_running = False
+            self.is_ready.clear()
+            print(f"[翻译服务错误/{self.channel_id}] {self.last_error}", flush=True)
+            return False
 
     def send_audio_frame(self, pcm_bytes: bytes) -> bool:
         """
@@ -362,7 +365,7 @@ class GummyZeroCopyEngine:
 class QwenLiveTranslate38Engine:
     """
     Qwen 3.8 Realtime Translation Engine.
-    - Supports live_update_session (session.update) for language and hotwords in <5ms without reconnecting.
+    - Sends translation phrase mappings at startup and reconnects for live changes.
     - Integrated TokenBucketLimiter for RPM=10 quota protection.
     - Standardized output payload emission.
     """
@@ -386,11 +389,15 @@ class QwenLiveTranslate38Engine:
         self.ws_url = ws_url or DEFAULT_QWEN_REALTIME_WS_URL
         self.limiter = limiter or TokenBucketLimiter(capacity=10.0, fill_rate=10.0 / 60.0)
         self.mock_mode = mock_mode
+        self.last_error = ""
 
         self.is_ready = threading.Event()
         self.is_running = False
         self.ws_client: Optional[Any] = None
         self.hotwords: List[str] = []
+        self.cloud_phrases: Dict[str, str] = {}
+        self.corpus_status = "pending"
+        self._sent_session_config: Optional[Dict[str, Any]] = None
 
         self.sentence_id: int = 0
         self.source_text: str = ""
@@ -409,10 +416,12 @@ class QwenLiveTranslate38Engine:
         self,
         target_lang: Optional[str] = None,
         hotwords: Optional[List[str]] = None,
+        phrases: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """
-        Hot-update translation target language and/or hotword corpus in <5ms without reconnecting.
-        Dispatches session.update directly over the established WebSocket connection.
+        Update translation language and phrase mappings.
+        Active sessions reconnect when configuration changes because the live API
+        rejects a second session.update after the initial configuration.
         """
         t0 = time.perf_counter()
         with self.lock:
@@ -420,21 +429,27 @@ class QwenLiveTranslate38Engine:
                 self.target_lang = target_lang
             if hotwords is not None:
                 self.hotwords = list(hotwords)
+            if phrases is not None:
+                self.cloud_phrases = dict(phrases)
 
             lang = self.target_lang
-            corpus = self.hotwords
+            corpus = list(self.hotwords)
+            cloud_phrases = dict(self.cloud_phrases)
 
         config: Dict[str, Any] = {
             "type": "session.update",
             "session": {
                 "output_modalities": ["text"],
+                "modalities": ["text"],
+                "voice": "Tina",
+                "input_audio_transcription": {"model": "qwen3-asr-flash-realtime"},
                 "translation": {
                     "language": lang,
+                    "corpus": {"phrases": cloud_phrases},
                 },
             },
         }
-        if corpus:
-            config["session"]["corpus"] = corpus
+        # Always send the complete mapping, including {} to clear removed terms.
 
         # Dispatch frame if connected
         if (
@@ -443,36 +458,60 @@ class QwenLiveTranslate38Engine:
             and self.ws_client.sock
             and getattr(self.ws_client.sock, "connected", False)
         ):
+            # The live service rejects a second session.update after startup.
+            # Keep unchanged configuration; reconnect for changed terms/language.
+            if self.is_running and self._sent_session_config is not None:
+                if config == self._sent_session_config:
+                    return {"status": "ok", "target_lang": lang, "hotwords": corpus,
+                            "cloud_phrases_count": len(cloud_phrases),
+                            "corpus_status": self.corpus_status, "elapsed_ms": 0.0}
+                self.stop()
+                self.corpus_status = "pending"
+                self.start()
+                return {"status": "ok", "target_lang": lang, "hotwords": corpus,
+                        "cloud_phrases_count": len(cloud_phrases),
+                        "corpus_status": self.corpus_status, "reconnecting": True,
+                        "elapsed_ms": round((time.perf_counter() - t0) * 1000.0, 3)}
             try:
+                self.corpus_status = "sent"
+                self._sent_session_config = config
                 self.ws_client.send(json.dumps(config))
-            except Exception:
-                pass
+            except Exception as error:
+                self._on_ws_error(self.ws_client, error)
 
         elapsed_ms = round((time.perf_counter() - t0) * 1000.0, 3)
         return {
-            "status": "ok",
+            "status": "error" if self.corpus_status == "error" else "ok",
             "target_lang": lang,
             "hotwords": corpus,
+            "cloud_phrases_count": len(cloud_phrases),
+            "corpus_status": self.corpus_status,
             "elapsed_ms": elapsed_ms,
         }
 
     def start(self, api_key: Optional[str] = None) -> bool:
         """Start engine session."""
+        if self.is_running:
+            return True
         if api_key:
             self.api_key = api_key
 
         effective_key = self.api_key.strip() if self.api_key else ""
         is_invalid_key = (not effective_key) or effective_key.startswith("在此填入") or ("your" in effective_key.lower())
 
-        if self.mock_mode or not HAS_WEBSOCKET or is_invalid_key:
-            self.mock_mode = True
+        if self.mock_mode:
             self.is_running = True
             self.is_ready.set()
             return True
+        if not HAS_WEBSOCKET or is_invalid_key:
+            self.last_error = "缺少有效 API Key 或 WebSocket 依赖"
+            return False
 
+        self.last_error = ""
         self.is_running = True
         # Asynchronously run WebSocket thread
-        threading.Thread(target=self._run_ws, daemon=True, name=f"QwenWS-{self.channel_id}").start()
+        self._ws_thread = threading.Thread(target=self._run_ws, daemon=True, name=f"QwenWS-{self.channel_id}")
+        self._ws_thread.start()
         return True
 
     def _run_ws(self) -> None:
@@ -504,6 +543,7 @@ class QwenLiveTranslate38Engine:
 
     def _on_ws_open(self, ws: Any) -> None:
         """Initialize session upon connection."""
+        self._sent_session_config = None
         self.live_update_session(self.target_lang, self.hotwords)
 
     def _on_ws_message(self, ws: Any, message: str) -> None:
@@ -515,7 +555,13 @@ class QwenLiveTranslate38Engine:
 
         event_type = data.get("type", "")
         if event_type == "session.updated":
+            self.last_error = ""
+            returned = data.get("session", {}).get("translation", {}).get("corpus", {}).get("phrases")
+            with self.lock:
+                self.corpus_status = "confirmed" if returned == self.cloud_phrases else "unconfirmed"
             self.is_ready.set()
+        elif event_type == "error":
+            self._on_ws_error(ws, data.get("error", data))
         elif event_type == "input_audio_buffer.speech_started":
             with self.lock:
                 self.sentence_id += 1
@@ -570,10 +616,20 @@ class QwenLiveTranslate38Engine:
             self._dispatch_payload(self.sentence_id, self.source_text, self.target_text, True, latency_ms)
 
     def _on_ws_error(self, ws: Any, error: Any) -> None:
-        pass
+        message = str(error)
+        if self.api_key:
+            message = message.replace(self.api_key, "[REDACTED]")
+        self.last_error = message[:500]
+        self.corpus_status = "error"
+        self.is_ready.clear()
+        print(f"[翻译服务错误/{self.channel_id}] {self.last_error}", flush=True)
 
     def _on_ws_close(self, ws: Any, code: Any, msg: Any) -> None:
         self.is_ready.clear()
+        if not self.last_error:
+            self.corpus_status = "pending"
+        if msg and code not in (None, 1000):
+            self._on_ws_error(ws, msg)
 
     def send_audio_chunk(self, raw_or_b64: Any) -> bool:
         """Send audio frame with RPM rate protection."""
@@ -665,3 +721,6 @@ class QwenLiveTranslate38Engine:
             except Exception:
                 pass
             self.ws_client = None
+        thread = getattr(self, "_ws_thread", None)
+        if thread and thread is not threading.current_thread():
+            thread.join(timeout=3)

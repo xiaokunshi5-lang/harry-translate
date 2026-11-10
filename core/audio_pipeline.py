@@ -117,6 +117,9 @@ class FastAudioCaptureWorker:
         self.sample_rate = sample_rate
         self.chunk_samples = chunk_samples
         self.chunk_bytes = chunk_samples * 2
+        self.capture_rate = sample_rate
+        self._resample_state = None
+        self._resample_pending = b""
 
         self.p: pyaudio.PyAudio = shared_pyaudio or pyaudio.PyAudio()
         self._owns_pyaudio: bool = shared_pyaudio is None
@@ -297,6 +300,7 @@ class FastAudioCaptureWorker:
             # 1. Parallel stream pre-opening
             new_stream = None
             opened_channels = 1
+            capture_rate = self.sample_rate
             candidates = [1, 2] if max_inputs > 1 else [1]
             for ch in candidates:
                 try:
@@ -315,14 +319,19 @@ class FastAudioCaptureWorker:
 
             if not new_stream:
                 try:
+                    # Many Windows WASAPI devices only expose 44.1/48 kHz.
+                    # Use their native rate, then stream-convert to model PCM.
+                    capture_rate = int(info.get("defaultSampleRate", self.sample_rate))
+                    if capture_rate != self.sample_rate and audioop is None:
+                        raise RuntimeError("Native-rate conversion requires the bundled Python 3.12 runtime")
                     opened_channels = min(2, max_inputs)
                     new_stream = self.p.open(
                         format=pyaudio.paInt16,
                         channels=opened_channels,
-                        rate=self.sample_rate,
+                        rate=capture_rate,
                         input=True,
                         input_device_index=target_index,
-                        frames_per_buffer=self.chunk_samples,
+                        frames_per_buffer=max(1, round(self.chunk_samples * capture_rate / self.sample_rate)),
                     )
                 except Exception as e:
                     switch_time_ms = round((time.perf_counter() - t0) * 1000, 2)
@@ -340,6 +349,9 @@ class FastAudioCaptureWorker:
                 self.device_index = target_index
                 self.device_name = dev_name
                 self.channels = opened_channels
+                self.capture_rate = capture_rate
+                self._resample_state = None
+                self._resample_pending = b""
                 self.is_idle = False
 
             # 3. Asynchronously close previous stream in daemon thread
@@ -398,7 +410,8 @@ class FastAudioCaptureWorker:
             try:
                 # Read 800 frames (50ms @ 16kHz)
                 # exception_on_overflow=False prevents OS buffer overflow crashes
-                raw_data = self.stream.read(self.chunk_samples, exception_on_overflow=False)
+                read_samples = max(1, round(self.chunk_samples * self.capture_rate / self.sample_rate))
+                raw_data = self.stream.read(read_samples, exception_on_overflow=False)
                 if not raw_data:
                     continue
 
@@ -406,6 +419,15 @@ class FastAudioCaptureWorker:
                 ch = self.channels
                 if ch > 1:
                     raw_data = downmix_to_mono(raw_data, ch)
+
+                if self.capture_rate != self.sample_rate:
+                    raw_data, self._resample_state = audioop.ratecv(
+                        raw_data, 2, 1, self.capture_rate, self.sample_rate, self._resample_state)
+                    self._resample_pending += raw_data
+                    if len(self._resample_pending) < self.chunk_bytes:
+                        continue
+                    raw_data = self._resample_pending[:self.chunk_bytes]
+                    self._resample_pending = self._resample_pending[self.chunk_bytes:]
 
                 self.total_frames_captured += 1
 
@@ -459,6 +481,7 @@ class FastAudioCaptureManager:
         sample_rate: int = SAMPLE_RATE,
         chunk_size: int = CHUNK_SIZE,
         on_audio_chunk: Optional[Callable[[str], None]] = None,
+        defer_open: bool = False,
     ):
         self.sample_rate = sample_rate
         self.chunk_size = chunk_size
@@ -488,13 +511,15 @@ class FastAudioCaptureManager:
 
         # Pre-open default input on Channel A for sub-35ms initial responsiveness
         try:
-            self.worker_a.switch_device(None)
+            if not defer_open:
+                self.worker_a.switch_device(None)
         except Exception:
             pass
 
         # Channel B auto-detection (enters safe idle if no loopback found)
         try:
-            self.worker_b.switch_device(None)
+            if not defer_open:
+                self.worker_b.switch_device(None)
         except Exception:
             self.worker_b.is_idle = True
 

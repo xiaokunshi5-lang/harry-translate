@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>欢迎使用 Harry Translate</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b111b;color:#e5edf7;font:15px/1.7 "Segoe UI","Microsoft YaHei",sans-serif}main{max-width:840px;margin:40px auto;padding:0 30px 50px}header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}.brand{font-weight:700;color:#49c9f4;font-size:19px}.tag{color:#9aabc0;font-size:13px}h1{font-size:30px;margin:0 0 8px}h2{font-size:20px;margin:0 0 8px}p{color:#a8b7cb;margin:8px 0 18px}.card{background:#121d2b;border:1px solid #28364a;border-radius:18px;padding:28px;margin:20px 0}.step{font-size:12px;letter-spacing:2px;color:#4dc6ee;margin-bottom:8px}label{display:block;margin-top:15px;color:#dbe5f2}input,select,button{font:inherit}input:not([type=checkbox]),select{background:#0a1320;border:1px solid #384b64;border-radius:8px;color:#ecf3fc;padding:11px 13px;width:100%;outline:none}input:focus,select:focus{border-color:#49c9f4;box-shadow:0 0 0 3px #49c9f422}.row{display:flex;gap:12px}.row>*{flex:1}.keyrow{display:flex;gap:8px}.keyrow input{flex:1}.keyrow button{flex:0 0 76px}.hint{font-size:13px;color:#9babc1;margin:6px 0 0}a{color:#60d0f7;text-underline-offset:4px}button,.linkbtn{border:1px solid #3b506b;background:#1c2a3c;color:#e5edf7;padding:10px 18px;border-radius:8px;cursor:pointer}.primary{background:#22b6e4;border-color:#22b6e4;color:#07131d;font-weight:700;width:100%;margin-top:22px}button:disabled{opacity:.55;cursor:wait}.check{display:flex;gap:9px;align-items:center;font-size:14px}.status{padding:12px 15px;border-radius:8px;background:#0b1421;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:16px;border-left:3px solid #49c9f4}.status:empty{display:none}.bad{border-left-color:#ff8e87;color:#ffb9b2}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:18px}#audio-card[hidden]{display:none}meter{width:100%;height:18px;margin-top:8px}.footer{font-size:12px;color:#7f92ab}details{margin-top:16px}summary{cursor:pointer;color:#b5c8df}@media(max-width:650px){main{padding:0 18px;margin-top:20px}.card{padding:20px}.row{display:block}h1{font-size:25px}}
+</style></head><body><main>
+<header><span class="brand">Harry Translate</span><span class="tag">Windows 桌面版</span></header>
+<h1>让每一句话，都被听懂。</h1><p>完成账户验证，选好麦克风，即可开始中英双向同传。</p>
+<section class="card" id="key-card"><div class="step">01 / 连接翻译服务</div><h2>填写你的百炼 API Key</h2><p>使用你自己的阿里云账户。模型调用费用由阿里云收取，软件不会代充值。</p>
+<form id="key-form"><label for="api-key">API Key</label><div class="keyrow"><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="在这里粘贴完整 API Key" maxlength="512"><button type="button" id="show-key" aria-label="显示密钥">显示</button></div>
+<p class="hint" id="saved-hint">密钥只用于连接阿里云，不会显示在字幕或日志中。</p>
+<p><a href="/desktop/api-guide">还没有 API Key？查看一步一步申请与配置教程 →</a></p>
+<div class="row"><div><label for="region">创建密钥时选择的地域</label><select id="region"><option value="beijing">华北 2（北京）</option><option value="singapore">新加坡</option></select></div><div><label for="workspace">业务空间 ID（按控制台填写）</label><input id="workspace" autocomplete="off" placeholder="新版业务空间填写；旧版可留空" maxlength="80"></div></div>
+<p class="hint">地域、密钥与业务空间必须属于同一套账户配置。这里不是阿里云 AccessKey ID。</p>
+<label class="check"><input id="remember" type="checkbox" checked>在这台电脑记住密钥（Windows 加密保存）</label>
+<button id="validate" class="primary" type="submit">验证 API Key 并继续</button></form>
+<div id="key-status" class="status" role="status" aria-live="polite"></div>
+<div class="actions"><button id="forget" hidden>删除本机保存的密钥</button></div></section>
+<section class="card" id="audio-card" hidden><div class="step">02 / 检查声音</div><h2>你希望翻译哪种声音？</h2>
+<label for="mode">使用场景</label><select id="mode"><option value="shared_mic">现场对话：同一麦克风，中英双向翻译</option><option value="meeting">远程会议：我方麦克风 + 对方系统声音</option></select>
+<label for="device">麦克风</label><select id="device"></select><p class="hint">电脑自带麦克风通常叫“麦克风阵列”；同一设备的不同驱动入口可能重复显示。</p>
+<div id="loopback-box" hidden><label for="loopback">远程会议的系统声音输入</label><select id="loopback"></select><p class="hint">只有可用的回环设备才能接收电脑播放的声音；普通麦克风不会自动变成系统内录。</p></div>
+<div class="actions"><button id="refresh">刷新设备</button><button id="test">检测麦克风（请说话 2 秒）</button></div><meter id="level" min="0" max="100" value="0" aria-label="麦克风声音强度"></meter>
+<div id="audio-status" class="status" role="status" aria-live="polite"></div>
+<p class="hint">检测只在本机进行，不上传、不保存录音。点击“开始翻译”后，声音才会发送至阿里云。</p>
+<button id="start" class="primary">开始翻译，进入系统</button><div class="actions"><a href="/">先进入主控面板（保持暂停）</a></div></section>
+<p class="footer">需要联网才能使用云端翻译。关闭应用会停止本次采集和翻译；升级安装不会覆盖用户词库。</p>
+</main><script>
+const $=id=>document.getElementById(id);let saved=false;
+function message(id,text,bad=false){$(id).textContent=text;$(id).classList.toggle('bad',bad)}
+async function api(path,body){const response=await fetch('/api/desktop/'+path,body===undefined?{cache:'no-store'}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const value=await response.json();if(!response.ok)throw Error(value.message||'请求失败，请重试');return value}
+function selected(){return {device:$('device').value,mode:$('mode').value,loopback:$('loopback').value}}
+async function refresh(){const state=await api('status');saved=state.has_key??state.has_saved_key;$('forget').hidden=!state.has_saved_key;$('region').value=state.region;$('workspace').value=state.workspace||'';$('audio-card').hidden=!state.validated;
+if(saved){$('api-key').placeholder='已有密钥；留空使用它，或粘贴新密钥';$('saved-hint').textContent=state.has_saved_key?'密钥已在本机加密保存。每次启动仍需验证服务可用性。':'密钥仅在本次运行中使用，关闭应用后需要重新输入。'}
+if(state.notice)message('key-status',state.notice,true);
+const current=$('device').value;$('device').replaceChildren();$('loopback').replaceChildren();for(const d of state.devices){let label=`${d.name}${d.is_default?'（系统默认）':''} · #${d.index}`;const option=new Option(label,d.index);$('device').add(option);if(d.is_loopback)$('loopback').add(new Option(label,d.index));if(String(d.index)===current||(!current&&((state.audio||{}).device_name===d.name||(!(state.audio||{}).device_name&&d.is_default))))option.selected=true;}
+if(!$('loopback').options.length)$('loopback').add(new Option('未检测到可用的系统声音输入',''));
+if(state.audio.mode)$('mode').value=state.audio.mode;$('loopback-box').hidden=$('mode').value!=='meeting';return state}
+$('show-key').onclick=()=>{const show=$('api-key').type==='password';$('api-key').type=show?'text':'password';$('show-key').textContent=show?'隐藏':'显示'};
+$('key-form').onsubmit=async event=>{event.preventDefault();if(!$('api-key').value.trim()&&!saved){message('key-status','请先粘贴完整 API Key。',true);return} $('validate').disabled=true;message('key-status','正在连接同传服务验证，请稍候…（此时不采集声音）');try{await api('validate',{api_key:$('api-key').value,region:$('region').value,workspace:$('workspace').value,remember:$('remember').checked});$('api-key').value='';message('key-status','验证成功。请在下方检测麦克风，再开始翻译。');await refresh();$('audio-card').scrollIntoView({behavior:'smooth',block:'start'})}catch(error){message('key-status',error.message,true);$('audio-card').hidden=true}finally{$('validate').disabled=false}};
+$('refresh').onclick=()=>refresh().catch(e=>message('audio-status',e.message,true));$('mode').onchange=()=>{$('loopback-box').hidden=$('mode').value!=='meeting'};
+$('test').onclick=async()=>{$('test').disabled=true;$('start').disabled=true;message('audio-status','现在请对着选中的麦克风说话，检测约 2 秒…');try{const result=await api('test-mic',selected());$('level').value=result.level;message('audio-status',result.message,!result.heard)}catch(e){message('audio-status',e.message,true)}finally{$('test').disabled=false;$('start').disabled=false}};
+$('start').onclick=async()=>{$('start').disabled=true;$('test').disabled=true;message('audio-status','正在连接双向同传并打开麦克风…');try{await api('start',selected());location.href='/split'}catch(e){message('audio-status',e.message,true)}finally{$('start').disabled=false;$('test').disabled=false}};
+$('forget').onclick=async()=>{if(confirm('删除本机保存的密钥？词库不会删除。')){try{await api('forget',{});location.reload()}catch(e){message('key-status',e.message,true)}}};
+refresh().catch(e=>message('key-status',e.message,true));
+</script></body></html>
